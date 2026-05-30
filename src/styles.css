@@ -1,0 +1,823 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-approved: var(--chart-approved);
+  --color-chart-conditional: var(--chart-conditional);
+  --color-chart-rejected: var(--chart-rejected);
+  --color-chart-alert: var(--chart-alert);
+  --color-chart-rnc: var(--chart-rnc);
+  --color-chart-insp: var(--chart-insp);
+  --color-chart-ppm: var(--chart-ppm);
+
+  --font-display: "Sora", "Inter", system-ui, sans-serif;
+}
+
+/* Frasle brand palette
+   Primary: Frasle red #E30613 ~ oklch(0.58 0.24 27)
+   Dark graphite from logo background */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.003 240);
+  --foreground: oklch(0.18 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 250);
+
+  --primary: oklch(0.58 0.24 27); /* Frasle red */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.006 240);
+  --secondary-foreground: oklch(0.22 0.02 250);
+  --muted: oklch(0.95 0.006 240);
+  --muted-foreground: oklch(0.5 0.015 250);
+  --accent: oklch(0.95 0.04 27 / 60%); /* light red wash */
+  --accent-foreground: oklch(0.35 0.18 27);
+  --destructive: oklch(0.55 0.24 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.9 0.008 240);
+  --input: oklch(0.9 0.008 240);
+  --ring: oklch(0.58 0.24 27);
+
+  --success: oklch(0.62 0.17 145);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.78 0.16 75);
+  --warning-foreground: oklch(0.2 0.05 60);
+  --info: oklch(0.6 0.04 250); /* graphite */
+  --info-foreground: oklch(0.99 0 0);
+
+  --chart-1: oklch(0.58 0.24 27); /* red */
+  --chart-2: oklch(0.62 0.17 145); /* green */
+  --chart-3: oklch(0.78 0.16 75); /* amber */
+  --chart-4: oklch(0.35 0.02 250); /* graphite */
+  --chart-5: oklch(0.55 0.04 250); /* light graphite */
+
+  /* Padded chart palette (Frasle) */
+  --chart-approved: #22c55e;
+  --chart-conditional: #eab308;
+  --chart-rejected: #ef4444;
+  --chart-alert: #f97316;
+  --chart-rnc: #38bdf8;
+  --chart-insp: #e2e8f0;
+  --chart-ppm: #c084fc;
+
+  --sidebar: oklch(0.22 0.01 250); /* dark graphite */
+  --sidebar-foreground: oklch(0.88 0.008 240);
+  --sidebar-primary: oklch(0.58 0.24 27); /* red accent */
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.28 0.012 250);
+  --sidebar-accent-foreground: oklch(0.97 0.005 240);
+  --sidebar-border: oklch(0.32 0.012 250);
+  --sidebar-ring: oklch(0.58 0.24 27);
+}
+
+.dark {
+  --background: oklch(0.14 0.012 250);
+  --foreground: oklch(0.96 0.006 240);
+  --card: oklch(0.19 0.014 250);
+  --card-foreground: oklch(0.96 0.006 240);
+  --popover: oklch(0.19 0.014 250);
+  --popover-foreground: oklch(0.96 0.006 240);
+  --primary: oklch(0.65 0.24 27);
+  --primary-foreground: oklch(0.14 0.012 250);
+  --secondary: oklch(0.24 0.014 250);
+  --secondary-foreground: oklch(0.96 0.006 240);
+  --muted: oklch(0.24 0.014 250);
+  --muted-foreground: oklch(0.7 0.012 240);
+  --accent: oklch(0.32 0.08 27);
+  --accent-foreground: oklch(0.96 0.006 240);
+  --destructive: oklch(0.65 0.24 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.65 0.24 27);
+
+  --success: oklch(0.72 0.18 145);
+  --warning: oklch(0.82 0.17 75);
+  --info: oklch(0.7 0.015 240);
+
+  --chart-1: oklch(0.7 0.22 27);
+  --chart-2: oklch(0.72 0.18 145);
+  --chart-3: oklch(0.82 0.17 75);
+  --chart-4: oklch(0.7 0.015 240);
+  --chart-5: oklch(0.55 0.04 250);
+
+  --sidebar: oklch(0.12 0.01 250);
+  --sidebar-foreground: oklch(0.88 0.008 240);
+  --sidebar-primary: oklch(0.65 0.24 27);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.22 0.014 250);
+  --sidebar-accent-foreground: oklch(0.96 0.006 240);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.65 0.24 27);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+}
+
+/* TV Mode */
+.tv-mode .tv-hide {
+  display: none !important;
+}
+.tv-mode {
+  font-size: 1.05rem;
+}
+.tv-mode .tv-pulse {
+  animation: tvpulse 2s ease-in-out infinite;
+}
+@keyframes tvpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Logo glow */
+.logo-glow {
+  position: relative;
+}
+.logo-glow::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%);
+  filter: blur(8px);
+  pointer-events: none;
+  z-index: 0;
+}
+.logo-glow > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Premium card hover */
+.card-premium {
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+  will-change: transform;
+}
+.card-premium:hover {
+  transform: translateY(-2px) scale(1.01);
+  border-color: color-mix(in oklab, var(--color-primary) 45%, transparent);
+  box-shadow:
+    0 10px 30px -10px color-mix(in oklab, var(--color-primary) 30%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--color-primary) 25%, transparent),
+    0 0 24px -6px color-mix(in oklab, var(--color-primary) 35%, transparent);
+}
+.section-premium {
+  transition:
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+.section-premium:hover {
+  border-color: color-mix(in oklab, var(--color-primary) 35%, transparent);
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--color-primary) 25%, transparent);
+}
+
+/* Recharts polish: readable tooltips + smoother hover */
+.recharts-tooltip-wrapper {
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease;
+  outline: none;
+}
+.recharts-default-tooltip {
+  background: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.55) !important;
+  color: #f8fafc !important;
+  padding: 8px 12px !important;
+}
+.recharts-default-tooltip .recharts-tooltip-label,
+.recharts-tooltip-label {
+  color: #f8fafc !important;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.recharts-default-tooltip .recharts-tooltip-item,
+.recharts-tooltip-item,
+.recharts-default-tooltip .recharts-tooltip-item-name,
+.recharts-default-tooltip .recharts-tooltip-item-separator,
+.recharts-default-tooltip .recharts-tooltip-item-value,
+.recharts-default-tooltip .recharts-tooltip-item-unit {
+  color: #f1f5f9 !important;
+}
+.recharts-layer:hover .recharts-bar-rectangle,
+.recharts-layer:hover .recharts-pie-sector {
+  filter: brightness(1.08) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+}
+
+/* Hide Lovable badge */
+iframe[title="Lovable Badge"] {
+  display: none !important;
+}
+a[href*="lovable.dev"] {
+  display: none !important;
+}
+
+/* ====== Modo TV avançado ====== */
+.tv-mode {
+  font-size: 1.1rem;
+}
+.tv-mode main {
+  padding: 1.75rem !important;
+}
+.tv-mode .text-3xl {
+  font-size: 2.5rem;
+  line-height: 1.05;
+}
+.tv-mode .text-base {
+  font-size: 1.15rem;
+}
+.tv-mode .text-sm {
+  font-size: 1.02rem;
+}
+.tv-mode .text-xs {
+  font-size: 0.9rem;
+}
+.tv-mode .card-premium {
+  padding: 1.5rem;
+}
+.tv-mode .recharts-text {
+  font-size: 14px !important;
+}
+.tv-mode h1,
+.tv-mode h2 {
+  letter-spacing: 0.01em;
+}
+.tv-fade {
+  animation: tvFade 0.5s ease-out;
+}
+@keyframes tvFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ====== Scrollbars fantasma (globais) ====== */
+/* WebKit: barra invisível mas funcional */
+*::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+/* Firefox */
+* {
+  scrollbar-width: none;
+}
+/* IE / Edge legado */
+* {
+  -ms-overflow-style: none;
+}
+/* Hover suave em containers de scroll quando o usuário interage */
+.scroll-hint:hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-hint:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--color-muted-foreground) 40%, transparent);
+  border-radius: 999px;
+}
+
+/* Modo TV: garantir zero scrollbar e overflow oculto onde possível */
+.tv-mode,
+.tv-mode * {
+  scrollbar-width: none !important;
+}
+.tv-mode *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ====== Filtros premium — barra do dashboard ====== */
+.filter-shell {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--card) 92%, transparent),
+      color-mix(in oklab, var(--card) 70%, transparent)
+    );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+/* Aba retrátil dos filtros */
+.filter-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 44px;
+  padding: 0 0.875rem 0 1rem;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--card) 94%, transparent),
+      color-mix(in oklab, var(--card) 78%, transparent)
+    );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  font-size: 0.8125rem;
+}
+
+/* Wrapper colapsável dos filtros: usa grid-template-rows para colapsar sem deixar espaço fantasma */
+.filter-panel-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .22s ease;
+  overflow: hidden;
+}
+.filter-panel-wrap--open { grid-template-rows: 1fr; }
+.filter-panel-inner { overflow: hidden; min-height: 0; }
+.filter-panel-wrap--floating {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-top: none;
+  box-shadow: 0 22px 48px -18px color-mix(in oklab, var(--primary) 22%, transparent),
+              0 12px 28px -10px rgb(0 0 0 / 0.35);
+  background: var(--background);
+}
+
+
+.filter-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 30px;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  transition: background-color .15s ease, color .15s ease, transform .15s ease;
+  cursor: pointer;
+}
+.filter-tab-btn:hover {
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: var(--foreground);
+}
+.filter-tab-btn[data-active="true"] {
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+  color: var(--primary);
+}
+
+.filter-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 42px;
+  padding: 0 0.875rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--card) 65%, transparent);
+  backdrop-filter: blur(6px);
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease;
+}
+.filter-control:hover {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+  box-shadow: 0 4px 18px -8px color-mix(in oklab, var(--primary) 35%, transparent);
+  transform: translateY(-1px);
+  background: color-mix(in oklab, var(--card) 85%, transparent);
+}
+.filter-control:focus-visible,
+.filter-control[data-state="open"] {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent);
+}
+.filter-control[data-active="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 8%, var(--card));
+}
+.filter-control input,
+.filter-control input:focus {
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  font-size: inherit;
+  color: inherit;
+}
+.filter-control input::-webkit-calendar-picker-indicator { opacity: .55; cursor: pointer; }
+
+.filter-grid-primary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+@media (min-width: 768px) { .filter-grid-primary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .filter-grid-primary { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+.filter-grid-secondary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+@media (min-width: 768px) {
+  .filter-grid-secondary {
+    grid-template-columns: 1.1fr 0.9fr 1fr 1fr 1.6fr auto;
+  }
+}
+
+.kpi-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  backdrop-filter: blur(6px);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.kpi-mini:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--primary) 40%, transparent);
+}
+.kpi-mini .kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px; width: 30px;
+  border-radius: 9px;
+  background: color-mix(in oklab, currentColor 14%, transparent);
+}
+.kpi-mini .kpi-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.kpi-mini .kpi-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+
+/* ====== Impressão por card (A4 paisagem) — capa FORM-CORP-213 ====== */
+.print-only {
+  display: none !important;
+}
+
+
+@media print {
+  /* @page margin:0 só vale se o usuário escolher "Sem margens" no diálogo.
+     Com "Padrão" o navegador aplica ~10mm; por isso o card abaixo é
+     dimensionado para 277x190mm (A4 paisagem menos 10mm de cada lado)
+     e ainda cabe em UMA única folha em qualquer configuração de margem. */
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Esconde tudo que não é o card alvo */
+  html.printing-section body * {
+    visibility: hidden !important;
+  }
+  html.printing-section [data-print-target],
+  html.printing-section [data-print-target] * {
+    visibility: visible !important;
+  }
+
+  /* Mata animações, transições e estados de hover/tooltip durante a impressão
+     (evita tooltip congelada, botões sobre gráfico, animação cortada) */
+  html.printing-section *,
+  html.printing-section *::before,
+  html.printing-section *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  html.printing-section .recharts-tooltip-wrapper,
+  html.printing-section .recharts-tooltip-cursor,
+  html.printing-section [role="tooltip"],
+  html.printing-section [data-radix-popper-content-wrapper],
+  html.printing-section [data-state="open"][role="dialog"]:not([data-print-target] *) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+  html.printing-section [data-print-target] .no-print,
+  html.printing-section [data-print-target] button:not(.print-keep),
+  html.printing-section [data-print-target] [role="button"]:not(.print-keep) {
+    display: none !important;
+  }
+
+
+  html.printing-section [data-print-target] {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 277mm !important;
+    height: 190mm !important;
+    max-width: 277mm !important;
+    max-height: 190mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  html.printing-section [data-print-target] > header {
+    display: none !important;
+  }
+  html.printing-section [data-print-target] .no-print {
+    display: none !important;
+  }
+  html.printing-section [data-print-target] .print-only {
+    display: flex !important;
+  }
+
+  /* Cores legíveis em papel (não afeta chrome marcado abaixo) */
+  html.printing-section [data-print-target] * {
+    color: #0f172a !important;
+    background-color: transparent !important;
+  }
+  html.printing-section [data-print-target] table,
+  html.printing-section [data-print-target] th,
+  html.printing-section [data-print-target] td {
+    border-color: #cbd5e1 !important;
+  }
+  html.printing-section [data-print-target] svg,
+  html.printing-section [data-print-target] svg * {
+    background-color: transparent !important;
+  }
+  html.printing-section [data-print-target] .recharts-surface * {
+    color: inherit !important;
+  }
+  /* Forçar contraste em textos SVG (Recharts usa fill, não color) */
+  html.printing-section [data-print-target] svg text,
+  html.printing-section [data-print-target] svg tspan,
+  html.printing-section [data-print-target] .recharts-text,
+  html.printing-section [data-print-target] .recharts-cartesian-axis-tick-value,
+  html.printing-section [data-print-target] .recharts-legend-item-text,
+  html.printing-section [data-print-target] .recharts-label,
+  html.printing-section [data-print-target] .recharts-label-list text {
+    fill: #0f172a !important;
+    color: #0f172a !important;
+  }
+  /* Eixos e grids mais escuros para impressão */
+  html.printing-section [data-print-target] .recharts-cartesian-axis line,
+  html.printing-section [data-print-target] .recharts-cartesian-axis-tick line {
+    stroke: #475569 !important;
+  }
+  html.printing-section [data-print-target] .recharts-cartesian-grid line {
+    stroke: #cbd5e1 !important;
+  }
+  /* Legendas (HTML) do Recharts */
+  html.printing-section [data-print-target] .recharts-default-legend,
+  html.printing-section [data-print-target] .recharts-legend-wrapper,
+  html.printing-section [data-print-target] .recharts-legend-item,
+  html.printing-section [data-print-target] .recharts-legend-item-text {
+    color: #0f172a !important;
+  }
+  /* Textos muted/foreground utilitários ficam legíveis em papel */
+  html.printing-section [data-print-target] .text-muted-foreground,
+  html.printing-section [data-print-target] .text-foreground,
+  html.printing-section [data-print-target] .text-white {
+    color: #1e293b !important;
+  }
+
+  /* ===== Chrome do formulário (capa) ===== */
+  html.printing-section [data-print-target] .print-chrome-bar {
+    display: block !important;
+    width: 100% !important;
+    height: 6mm !important;
+    background: var(--print-accent, #ffc20e) !important;
+    flex: 0 0 auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html.printing-section [data-print-target] .print-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 4mm 10mm 2mm 10mm !important;
+    flex: 0 0 auto !important;
+  }
+  html.printing-section [data-print-target] .print-header-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4mm !important;
+  }
+  html.printing-section [data-print-target] .print-header-icon {
+    width: 7mm !important;
+    height: 7mm !important;
+    color: #1f2937 !important;
+  }
+  html.printing-section [data-print-target] .print-header-title {
+    font-weight: 700 !important;
+    font-size: 13pt !important;
+    letter-spacing: 0.06em !important;
+    color: #1f2937 !important;
+  }
+  html.printing-section [data-print-target] .print-header-datebox {
+    border: 1px solid #1f2937 !important;
+    padding: 1.5mm 4mm !important;
+    font-size: 11pt !important;
+    color: #1f2937 !important;
+    border-radius: 1mm !important;
+  }
+  html.printing-section [data-print-target] .print-header-logo {
+    height: 12mm !important;
+    width: auto !important;
+    object-fit: contain !important;
+  }
+
+  html.printing-section [data-print-target] .print-titlebar {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 10mm 3mm 10mm !important;
+    border-bottom: 0.4mm solid #cbd5e1 !important;
+    flex: 0 0 auto !important;
+  }
+  html.printing-section [data-print-target] .print-doc-title {
+    font-size: 16pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+  }
+  html.printing-section [data-print-target] .print-doc-period {
+    font-size: 10.5pt !important;
+    color: #334155 !important;
+    margin-top: 1mm !important;
+  }
+
+  /* Área do conteúdo do card preenche o resto */
+  html.printing-section [data-print-target] .print-content {
+    flex: 1 1 auto !important;
+    padding: 3mm 10mm !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+  html.printing-section [data-print-target] .print-content > * {
+    min-height: 0 !important;
+  }
+  /* Gráficos: altura fixa para garantir espaço da tabela abaixo */
+  html.printing-section [data-print-target] .print-content .recharts-responsive-container {
+    flex: 0 0 78mm !important;
+    width: 100% !important;
+    height: 78mm !important;
+    min-height: 78mm !important;
+  }
+  /* Blocos após o gráfico (tabelas, etc.): sempre visíveis */
+  html.printing-section [data-print-target] .print-content > div {
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+  }
+  html.printing-section [data-print-target] .print-content > div + div {
+    margin-top: 2mm !important;
+  }
+  html.printing-section [data-print-target] .print-content table {
+    table-layout: fixed !important;
+    font-size: 7pt !important;
+    line-height: 1.05 !important;
+    width: 100% !important;
+  }
+  html.printing-section [data-print-target] .print-content th,
+  html.printing-section [data-print-target] .print-content td {
+    padding: 0.6mm 0.8mm !important;
+    white-space: nowrap !important;
+  }
+
+  html.printing-section [data-print-target] .print-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 1.2mm 10mm !important;
+    flex: 0 0 auto !important;
+    background: #fff !important;
+    border-top: 0.2mm solid #e2e8f0 !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+  html.printing-section [data-print-target] .print-footer-logo {
+    height: 6mm !important;
+    width: auto !important;
+    object-fit: contain !important;
+  }
+  html.printing-section [data-print-target] .print-footer-code {
+    font-size: 9pt !important;
+    color: #475569 !important;
+    letter-spacing: 0.02em !important;
+  }
+}
