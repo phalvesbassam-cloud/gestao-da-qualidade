@@ -49,23 +49,65 @@ function IdfPage() {
     return { insp: previous.idf.length, idfMed: pIdfMed, nc: pNC, forn: pScore.length };
   }, [compare, previous]);
 
+  const desfechoStats = useMemo(() => {
+    const reprovados = rows.filter((r) => r.status.toLowerCase().includes("reprov"));
+
+    return {
+      aprovadosDepois: reprovados.filter((r) => r.desfecho === "Aprovado depois").length,
+      reprovaramNovamente: reprovados.filter((r) => r.desfecho === "Reprovou novamente").length,
+      semRetorno: reprovados.filter((r) => r.desfecho === "Sem retorno").length,
+      naoAnalisado: reprovados.filter((r) => !r.desfecho || r.desfecho === "Não analisado").length,
+    };
+  }, [rows]);
+
   function downloadCsv() {
     const headers = [
-      "Processo","Divisão","Código item","Quantidade","Data Recebimento","Status","Tipo Problema",
-      "Problema","Descrição item","Fornecedor","Criticidade","Nota NC",
+      "Processo",
+      "Divisão",
+      "Código item",
+      "Quantidade",
+      "Data Recebimento",
+      "Status",
+      "Tipo Problema",
+      "Problema",
+      "Descrição item",
+      "Fornecedor",
+      "Criticidade",
+      "Nota NC",
+      "Desfecho",
+      "Data Desfecho",
+      "Processo Desfecho",
     ];
+
     const lines = [headers.join(";")];
+
     for (const r of rows) {
       lines.push([
-        r.processo, r.divisao, r.codigoItem, r.quantidade, r.dataRecebimento, r.status, r.tipoProblema,
-        r.problema, r.descricaoItem, r.fornecedor, r.criticidade, r.notaNC,
+        r.processo,
+        r.divisao,
+        r.codigoItem,
+        r.quantidade,
+        r.dataRecebimento,
+        r.status,
+        r.tipoProblema,
+        r.problema,
+        r.descricaoItem,
+        r.fornecedor,
+        r.criticidade,
+        r.notaNC,
+        r.desfecho || "",
+        r.desfechoData || "",
+        r.desfechoProcesso || "",
       ].map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(";"));
     }
+
     const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `IDF-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+    a.href = url;
+    a.download = `IDF-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const totalRecorrencias = rows.reduce((s, r) => s + (r.irPoints > 0 ? 1 : 0), 0);
@@ -96,7 +138,12 @@ function IdfPage() {
         <KpiCard label="Mais Reincidente" value={topReinc[0]?.fornecedor || "—"} hint={topReinc[0] ? `IR ${topReinc[0].ir}` : "sem recorrências"} />
       </div>
 
-
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-stretch">
+        <KpiCard label="Aprovados depois" value={desfechoStats.aprovadosDepois} tone="success" hint="reprovados com nova aprovação" />
+        <KpiCard label="Reprovaram novamente" value={desfechoStats.reprovaramNovamente} tone="destructive" hint="mesmo fornecedor + item + problema" />
+        <KpiCard label="Sem retorno" value={desfechoStats.semRetorno} tone="warning" hint="sem nova inspeção posterior" />
+        <KpiCard label="Não analisado" value={desfechoStats.naoAnalisado} hint="sem classificação aplicável" />
+      </div>
 
       <SectionCard
         title="Ranking IDF — Top 10 Fornecedores"
@@ -193,6 +240,7 @@ function IdfPage() {
                 <th className="py-2 pr-2">Status</th>
                 <th className="py-2 pr-2">Problema</th>
                 <th className="py-2 pr-2 text-center">Reincid.</th>
+                <th className="py-2 pr-2 text-center">Desfecho</th>
                 <th className="py-2 pr-2 text-right">Nota Auto</th>
                 <th className="py-2 pr-2 text-right">Nota Final</th>
                 <th className="py-2 pr-2 text-center w-8"></th>
@@ -210,6 +258,7 @@ function IdfPage() {
                   <td className="py-1.5 pr-2"><StatusBadge s={r.status} /></td>
                   <td className="py-1.5 pr-2 max-w-[180px] truncate text-muted-foreground">{r.problema || "—"}</td>
                   <td className="py-1.5 pr-2 text-center"><ReincBadge row={r} /></td>
+                  <td className="py-1.5 pr-2 text-center"><DesfechoBadge row={r} /></td>
                   <td className="py-1.5 pr-2 text-right tabular-nums text-muted-foreground">{r.notaNCAuto.toFixed(1)}</td>
                   <td className={`py-1.5 pr-2 text-right tabular-nums ${r.notaOverride ? "text-primary font-semibold" : ""}`} title={r.notaOverride ? `Manual: ${r.overrideAutor} — ${r.overrideMotivo}` : undefined}>
                     {r.notaNC.toFixed(1)}{r.notaOverride ? " ✎" : ""}
@@ -230,12 +279,57 @@ function IdfPage() {
 
 function StatusBadge({ s }: { s: string }) {
   const l = s.toLowerCase();
-  if (l.includes("aprovação condicional") || l.includes("aprovacao condicional"))
+
+  if (l.includes("aprovação condicional") || l.includes("aprovacao condicional")) {
     return <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">Condicional</Badge>;
-  if (l.includes("reprov"))
+  }
+
+  if (l.includes("reprov")) {
     return <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15">Reprovado</Badge>;
-  if (l.includes("aprovado"))
+  }
+
+  if (l.includes("aprovado")) {
     return <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15">Aprovado</Badge>;
+  }
+
   return <Badge variant="secondary">{s || "—"}</Badge>;
 }
 
+function DesfechoBadge({ row }: { row: any }) {
+  const d = row.desfecho || "Não analisado";
+
+  if (d === "Aprovado depois") {
+    return (
+      <Badge
+        className="bg-success/15 text-success border-success/30 hover:bg-success/15"
+        title={row.desfechoData ? `Aprovado em ${row.desfechoData} — Proc. ${row.desfechoProcesso || "—"}` : undefined}
+      >
+        Aprovado depois
+      </Badge>
+    );
+  }
+
+  if (d === "Reprovou novamente") {
+    return (
+      <Badge
+        className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"
+        title={row.desfechoData ? `Reprovou novamente em ${row.desfechoData} — Proc. ${row.desfechoProcesso || "—"}` : undefined}
+      >
+        Reprovou novamente
+      </Badge>
+    );
+  }
+
+  if (d === "Sem retorno") {
+    return (
+      <Badge
+        className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15"
+        title="Sem nova inspeção posterior para o mesmo fornecedor + item + problema"
+      >
+        Sem retorno
+      </Badge>
+    );
+  }
+
+  return <Badge variant="secondary">Não analisado</Badge>;
+}

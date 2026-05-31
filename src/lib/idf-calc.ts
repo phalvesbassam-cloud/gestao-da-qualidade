@@ -95,7 +95,16 @@ export function classificacaoFromIdf(pct: number): {
 }
 
 // ---- Mapeadores ----
-export type NotaOverride = { processo: string; codigo_item: string; lote: string; nota_final: number; motivo: string; observacao: string | null; autor: string; updated_at: string };
+export type NotaOverride = {
+  processo: string;
+  codigo_item: string;
+  lote: string;
+  nota_final: number;
+  motivo: string;
+  observacao: string | null;
+  autor: string;
+  updated_at: string;
+};
 
 export function overrideKey(processo: string, codigoItem: string, lote: string): string {
   return `${processo}__${codigoItem}__${lote}`;
@@ -107,9 +116,11 @@ export function mapIDF(
   overrides: Map<string, NotaOverride> = new Map(),
 ): IDFRow[] {
   const out: IDFRow[] = [];
+
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i] || [];
     if (!r[0]) continue;
+
     // Colunas reais da planilha IDF:
     // A Processo | B Divisão | C Código item | D Quantidade
     // E Data Finalização Insp | F Hora Recebimento | G Data Início Insp | H Hora Início Insp
@@ -117,6 +128,7 @@ export function mapIDF(
     // M Problema | N Descrição do Problema | O Descrição item | P Fornecedor
     // Q LOTE | R Criticidade | S Nível | T Código Fornecedor
     // U Inspetor Início | V Inspetor Final | W Atenção
+
     const status = String(r[10] ?? "");
     const criticidade = String(r[17] ?? "");
     const ncAuto = notaNC(status, criticidade, config.ncWeights);
@@ -125,6 +137,7 @@ export function mapIDF(
     const lote = String(r[16] ?? "").trim();
     const ov = overrides.get(overrideKey(processo, codigoItem, lote));
     const ncFinal = ov ? Number(ov.nota_final) : ncAuto;
+
     out.push({
       processo,
       divisao: String(r[1] ?? ""),
@@ -159,10 +172,14 @@ export function mapIDF(
       overrideAt: ov?.updated_at,
       recorrencia: 0,
       irPoints: 0,
+      desfecho: "Não analisado",
+      desfechoData: undefined,
+      desfechoProcesso: undefined,
       dataReferencia: parseBrDate(String(r[8] ?? "")),
     });
   }
-  return applyIR(out, config);
+
+  return applyDesfechoReprovacao(applyIR(out, config));
 }
 
 // ---- Cálculo IR (híbrido: com ou sem lote) ----
@@ -193,19 +210,20 @@ function applyIR(rows: IDFRow[], cfg: AppConfig): IDFRow[] {
   for (const { r } of indexed) {
     if (!matchesStatus(r.status)) continue;
     if (!r.dataReferencia) continue;
+
     const key = `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.problema || r.tipoProblema)}`;
     const hist = history.get(key) || [];
     const lote = norm(r.lote);
 
     let recurrenceCount = 0;
+
     for (const prev of hist) {
       const diff = r.dataReferencia.getTime() - prev.date.getTime();
       if (diff <= 0 || diff > windowMs) continue;
+
       if (lote && prev.lote) {
-        // ambos têm lote → exige lote diferente
         if (prev.lote !== lote) recurrenceCount++;
       } else {
-        // legado: algum dos lados sem lote → conta recorrência do trio
         recurrenceCount++;
       }
     }
@@ -221,12 +239,100 @@ function applyIR(rows: IDFRow[], cfg: AppConfig): IDFRow[] {
 
   return rows;
 }
+// ---- Desfecho pós-reprovação ----
+// Para cada linha reprovada, verifica se depois dela apareceu nova inspeção
+// do mesmo fornecedor + item.
+function applyDesfechoReprovacao(rows: IDFRow[]): IDFRow[] {
+  const norm = (s: string) =>
+    (s || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const isReprovado = (s: string) => norm(s).includes("reprov");
+
+  const isAprovado = (s: string) => {
+    const v = norm(s);
+    return v.includes("aprov") && !v.includes("condicional") && !v.includes("reprov");
+  };
+
+  const keyItemFornecedor = (r: IDFRow) =>
+    `${norm(r.fornecedor)}|${norm(r.codigoItem)}`;
+
+  const keyProblema = (r: IDFRow) =>
+    `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.problema || r.tipoProblema)}`;
+
+  const processoNum = (r: IDFRow) =>
+    Number(String(r.processo || "").replace(/\D/g, "")) || 0;
+
+  const isPosterior = (base: IDFRow, candidato: IDFRow) => {
+    const baseData = base.dataReferencia?.getTime() ?? 0;
+    const candData = candidato.dataReferencia?.getTime() ?? 0;
+
+    if (baseData && candData) {
+      if (candData !== baseData) return candData > baseData;
+      return processoNum(candidato) > processoNum(base);
+    }
+
+    return processoNum(candidato) > processoNum(base);
+  };
+
+  const all = [...rows].sort((a, b) => {
+    const da = a.dataReferencia?.getTime() ?? 0;
+    const db = b.dataReferencia?.getTime() ?? 0;
+
+    if (da !== db) return da - db;
+
+    return processoNum(a) - processoNum(b);
+  });
+
+  for (const row of rows) {
+    if (!isReprovado(row.status)) {
+      row.desfecho = "Não analisado";
+      row.desfechoData = undefined;
+      row.desfechoProcesso = undefined;
+      continue;
+    }
+
+    const posterioresMesmoItem = all.filter((r) => {
+      if (r === row) return false;
+      if (keyItemFornecedor(r) !== keyItemFornecedor(row)) return false;
+      return isPosterior(row, r);
+    });
+
+    const posterioresMesmoProblema = posterioresMesmoItem.filter((r) => {
+      return keyProblema(r) === keyProblema(row);
+    });
+
+    const reprovouDepois = posterioresMesmoProblema.find((r) => isReprovado(r.status));
+    const aprovadoDepois = posterioresMesmoItem.find((r) => isAprovado(r.status));
+
+    if (reprovouDepois) {
+      row.desfecho = "Reprovou novamente";
+      row.desfechoData = reprovouDepois.dataRecebimento;
+      row.desfechoProcesso = reprovouDepois.processo;
+    } else if (aprovadoDepois) {
+      row.desfecho = "Aprovado depois";
+      row.desfechoData = aprovadoDepois.dataRecebimento;
+      row.desfechoProcesso = aprovadoDepois.processo;
+    } else {
+      row.desfecho = "Sem retorno";
+      row.desfechoData = undefined;
+      row.desfechoProcesso = undefined;
+    }
+  }
+
+  return rows;
+}
 
 export function mapAlerta(rows: any[][]): AlertaRow[] {
   const out: AlertaRow[] = [];
+
   for (let i = 2; i < rows.length; i++) {
     const r = rows[i] || [];
     if (!r[0]) continue;
+
     out.push({
       numero: String(r[0] ?? ""),
       dataCriacao: String(r[1] ?? ""),
@@ -246,14 +352,17 @@ export function mapAlerta(rows: any[][]): AlertaRow[] {
       dataReferencia: parseBrDate(String(r[1] ?? "")),
     });
   }
+
   return out;
 }
 
 export function mapRNC(rows: any[][]): RNCRow[] {
   const out: RNCRow[] = [];
+
   for (let i = 2; i < rows.length; i++) {
     const r = rows[i] || [];
     if (!r[0]) continue;
+
     out.push({
       rnc: String(r[0] ?? ""),
       data: String(r[1] ?? ""),
@@ -276,6 +385,7 @@ export function mapRNC(rows: any[][]): RNCRow[] {
       dataReferencia: parseBrDate(String(r[1] ?? "")),
     });
   }
+
   return out;
 }
 
@@ -287,6 +397,7 @@ export function scoreFornecedores(
   buckets: IrBucket[] = DEFAULT_CONFIG.irBuckets,
 ): FornecedorScore[] {
   const map = new Map<string, FornecedorScore>();
+
   const ensure = (f: string) => {
     if (!map.has(f)) {
       map.set(f, {
@@ -306,23 +417,34 @@ export function scoreFornecedores(
         recorrencias: 0,
       });
     }
+
     return map.get(f)!;
   };
 
   for (const r of idf) {
     const f = ensure(r.fornecedor);
     f.totalInsp++;
+
     const s = r.status.toLowerCase();
-    if (s.includes("aprovação condicional") || s.includes("aprovacao condicional")) f.condicionais++;
-    else if (s.includes("reprov")) f.reprovados++;
-    else if (s.includes("aprovado")) f.aprovados++;
+
+    if (s.includes("aprovação condicional") || s.includes("aprovacao condicional")) {
+      f.condicionais++;
+    } else if (s.includes("reprov")) {
+      f.reprovados++;
+    } else if (s.includes("aprovado")) {
+      f.aprovados++;
+    }
+
     f.pontosNC += r.notaNC;
     f.ir += r.irPoints;
+
     if (r.irPoints > 0) f.recorrencias++;
   }
+
   for (const a of alertas) ensure(a.fornecedor).alertas++;
 
   const item2for = buildItemFornecedorMap(idf);
+
   for (const r of rncs) {
     const f = item2for.get(r.item);
     if (f && map.has(f)) map.get(f)!.rncs++;
@@ -335,6 +457,7 @@ export function scoreFornecedores(
     f.status = c.status;
     f.irPct = irPercent(f.ir, buckets);
   }
+
   return [...map.values()].sort((a, b) => b.idfPct - a.idfPct || a.pontosNC - b.pontosNC);
 }
 
@@ -342,12 +465,15 @@ export function scoreFornecedores(
 export function calcPPM(idf: IDFRow[]): { ppm: number; ncQt: number; totalQt: number } {
   let nc = 0;
   let total = 0;
+
   for (const r of idf) {
     const q = r.quantidade || 0;
     total += q;
+
     const s = r.status.toLowerCase();
     if (s.includes("reprov")) nc += q;
   }
+
   const ppm = total > 0 ? Math.round((nc / total) * 1_000_000) : 0;
   return { ppm, ncQt: nc, totalQt: total };
 }
@@ -360,17 +486,35 @@ export function ppmTone(ppm: number): "success" | "warning" | "destructive" {
 
 function buildItemFornecedorMap(idf: IDFRow[]): Map<string, string> {
   const counts = new Map<string, Map<string, number>>();
+
   for (const r of idf) {
     if (!r.codigoItem || !r.fornecedor) continue;
+
     let m = counts.get(r.codigoItem);
-    if (!m) { m = new Map(); counts.set(r.codigoItem, m); }
+
+    if (!m) {
+      m = new Map();
+      counts.set(r.codigoItem, m);
+    }
+
     m.set(r.fornecedor, (m.get(r.fornecedor) || 0) + 1);
   }
+
   const out = new Map<string, string>();
+
   for (const [item, m] of counts) {
-    let best = ""; let n = 0;
-    for (const [f, c] of m) if (c > n) { best = f; n = c; }
+    let best = "";
+    let n = 0;
+
+    for (const [f, c] of m) {
+      if (c > n) {
+        best = f;
+        n = c;
+      }
+    }
+
     if (best) out.set(item, best);
   }
+
   return out;
 }
