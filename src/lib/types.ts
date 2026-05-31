@@ -1,5 +1,11 @@
 // Domínio Gestão da Qualidade de Fornecedores
 
+export type DesfechoReprovacao =
+  | "Aprovado depois"
+  | "Reprovou novamente"
+  | "Sem nova entrada"
+  | "Não analisado";
+
 export type IDFRow = {
   processo: string;
   divisao: string;
@@ -24,6 +30,7 @@ export type IDFRow = {
   inspetorFinal: string;
   atencao: string;
   lote: string;
+
   // calculados
   notaNC: number;            // nota NC efetiva (auto OU override manual)
   notaNCBase: number;        // idem (mantido p/ compatibilidade)
@@ -35,6 +42,12 @@ export type IDFRow = {
   overrideAt?: string;
   recorrencia: number;
   irPoints: number;
+
+  // desfecho pós-reprovação
+  desfecho?: DesfechoReprovacao;
+  desfechoData?: string;
+  desfechoProcesso?: string;
+
   dataReferencia: Date | null;
 };
 

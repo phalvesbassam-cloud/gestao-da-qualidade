@@ -55,7 +55,7 @@ function IdfPage() {
     return {
       aprovadosDepois: reprovados.filter((r) => r.desfecho === "Aprovado depois").length,
       reprovaramNovamente: reprovados.filter((r) => r.desfecho === "Reprovou novamente").length,
-      semRetorno: reprovados.filter((r) => r.desfecho === "Sem retorno").length,
+      semRetorno: reprovados.filter((r) => r.desfecho === "Sem nova entrada").length,
       naoAnalisado: reprovados.filter((r) => !r.desfecho || r.desfecho === "Não analisado").length,
     };
   }, [rows]);
@@ -141,7 +141,7 @@ function IdfPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-stretch">
         <KpiCard label="Aprovados depois" value={desfechoStats.aprovadosDepois} tone="success" hint="reprovados com nova aprovação" />
         <KpiCard label="Reprovaram novamente" value={desfechoStats.reprovaramNovamente} tone="destructive" hint="mesmo fornecedor + item + problema" />
-        <KpiCard label="Sem retorno" value={desfechoStats.semRetorno} tone="warning" hint="sem nova inspeção posterior" />
+        <KpiCard label="Sem nova entrada" value={desfechoStats.semRetorno} tone="warning" hint="sem nova inspeção posterior" />
         <KpiCard label="Não analisado" value={desfechoStats.naoAnalisado} hint="sem classificação aplicável" />
       </div>
 
@@ -320,13 +320,13 @@ function DesfechoBadge({ row }: { row: any }) {
     );
   }
 
-  if (d === "Sem retorno") {
+  if (d === "Sem nova entrada") {
     return (
       <Badge
         className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15"
         title="Sem nova inspeção posterior para o mesmo fornecedor + item + problema"
       >
-        Sem retorno
+        Sem nova entrada
       </Badge>
     );
   }
