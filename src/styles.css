@@ -255,16 +255,16 @@
   outline: none;
 }
 .recharts-default-tooltip {
-  background: #0f172a !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: var(--popover) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 10px !important;
-  box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.55) !important;
-  color: #f8fafc !important;
+  box-shadow: 0 12px 32px -14px color-mix(in oklab, var(--foreground) 35%, transparent) !important;
+  color: var(--popover-foreground) !important;
   padding: 8px 12px !important;
 }
 .recharts-default-tooltip .recharts-tooltip-label,
 .recharts-tooltip-label {
-  color: #f8fafc !important;
+  color: var(--popover-foreground) !important;
   font-weight: 600;
   margin-bottom: 4px;
 }
@@ -274,7 +274,7 @@
 .recharts-default-tooltip .recharts-tooltip-item-separator,
 .recharts-default-tooltip .recharts-tooltip-item-value,
 .recharts-default-tooltip .recharts-tooltip-item-unit {
-  color: #f1f5f9 !important;
+  color: var(--popover-foreground) !important;
 }
 .recharts-layer:hover .recharts-bar-rectangle,
 .recharts-layer:hover .recharts-pie-sector {
@@ -520,39 +520,45 @@ a[href*="lovable.dev"] {
 .kpi-mini {
   display: inline-flex;
   align-items: center;
-  gap: 0.625rem;
-  padding: 0.5rem 0.875rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
-  background: color-mix(in oklab, var(--card) 70%, transparent);
-  backdrop-filter: blur(6px);
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  gap: 0.4rem;
+  min-height: 32px;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background: color-mix(in oklab, var(--muted) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 65%, transparent);
+  transition: background-color .18s ease, border-color .18s ease;
 }
 .kpi-mini:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
-  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--primary) 40%, transparent);
+  border-color: color-mix(in oklab, currentColor 35%, var(--border));
+  background: color-mix(in oklab, var(--muted) 92%, transparent);
 }
 .kpi-mini .kpi-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px; width: 30px;
-  border-radius: 9px;
-  background: color-mix(in oklab, currentColor 14%, transparent);
+  height: 20px;
+  width: 20px;
+  border-radius: 999px;
+  background: transparent;
 }
 .kpi-mini .kpi-value {
-  font-size: 1.05rem;
+  font-size: 0.875rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 .kpi-mini .kpi-label {
-  font-size: 0.65rem;
+  font-size: 0.575rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted-foreground);
-  margin-top: 2px;
+  margin-top: 1px;
+}
+
+@media (max-width: 900px) {
+  .kpi-mini .kpi-label { display: none; }
+  .kpi-mini { padding-inline: 0.45rem; }
 }
 
 /* ====== Impressão por card (A4 paisagem) — capa FORM-CORP-213 ====== */

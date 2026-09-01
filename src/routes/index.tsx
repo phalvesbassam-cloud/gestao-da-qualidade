@@ -16,10 +16,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, AlertTriangle, Award, CheckCircle2, FileWarning, ShieldAlert, Siren, TrendingUp, Trophy, Users } from "lucide-react";
+import { Activity, AlertTriangle, Award, CheckCircle2, FileWarning, RotateCcw, ShieldAlert, Siren, TrendingUp, Trophy, Users } from "lucide-react";
 import { useMemo } from "react";
 import { useDashboardFiltered } from "@/hooks/use-data";
+import { useFilters } from "@/hooks/use-dashboard";
 import { KpiCard, PpmCard, SectionCard, StatusDot, ClassBadge, DeltaBadge, EmptyState, EficienciaInspecaoCard } from "@/components/dashboard-ui";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
 import { scoreFornecedores } from "@/lib/idf-calc";
 
@@ -40,8 +42,11 @@ const STATUS_COLORS: Record<string, string> = {
   vermelho: "var(--color-destructive)",
 };
 
+const MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
 function ConsolidadoPage() {
-  const { filtered, previous, compare, efficiency, previousEfficiency } = useDashboardFiltered();
+  const { data, filtered, previous, compare, efficiency, previousEfficiency } = useDashboardFiltered();
+  const { reset: resetFilters } = useFilters();
   const navigate = useNavigate();
   const idf = filtered.idf;
   const alertas = filtered.alerta;
@@ -164,7 +169,6 @@ function ConsolidadoPage() {
   }, [idf, alertas, rncs]);
 
   // Índice de Não Conformidade mensal (por SKUs únicos)
-  const MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const indiceNC = useMemo(() => {
     // por mês: conjuntos de SKUs distintos por status
     const map = new Map<number, { reprovado: Set<string>; aprovado: Set<string>; desvio: Set<string> }>();
@@ -219,6 +223,11 @@ function ConsolidadoPage() {
     });
   }, [idf]);
   const paretoTotal = pareto.reduce((s, x) => s + x.qtd, 0);
+  const baseTemNC = Boolean(data?.idf.some((r) => {
+    const status = lower(r.status);
+    return status.includes("reprov") || status.includes("condicional");
+  }));
+  const ncOcultasPelosFiltros = paretoTotal === 0 && baseTemNC;
 
   // Eficiência mensal: recebida pela Data de Criação e inspecionada pela Data de Início.
   const eficienciaMensal = useMemo(() => {
@@ -423,6 +432,15 @@ function ConsolidadoPage() {
           <span className="inline-block w-3 h-0.5 bg-info rounded-full" />
           <span>Linha azul = meta de não conformidade ({metaNC.toFixed(1).replace(".0", "")}%)</span>
         </div>
+        {ncOcultasPelosFiltros && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-foreground">
+            <span>O recorte atual não contém não conformidades. Os dados continuam na base.</span>
+            <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="h-8 gap-1.5">
+              <RotateCcw className="h-3.5 w-3.5" />
+              Limpar filtros e exibir dados
+            </Button>
+          </div>
+        )}
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={indiceNC} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
@@ -496,7 +514,21 @@ function ConsolidadoPage() {
           </span>
         }
       >
-        {pareto.length === 0 ? <EmptyState /> : (
+        {pareto.length === 0 ? (
+          ncOcultasPelosFiltros ? (
+            <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-warning/40 bg-warning/5 p-5 text-center">
+              <AlertTriangle className="h-6 w-6 text-warning" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Nenhuma não conformidade neste recorte</p>
+                <p className="mt-1 text-xs text-muted-foreground">Os registros permanecem na base. Remova os filtros para recuperar o Pareto completo.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Limpar filtros e exibir gráfico
+              </Button>
+            </div>
+          ) : <EmptyState />
+        ) : (
           <>
             <ResponsiveContainer width="100%" height={320}>
               <ComposedChart data={pareto} margin={{ top: 10, right: 30, left: 0, bottom: 60 }}>

@@ -26,6 +26,23 @@ export function useDashboardFiltered() {
     fetchedAt: "",
   };
   const result = useFilteredData(data ?? empty);
-  const { previous, compare, compareLabel, currentLabel, ...filtered } = result;
-  return { data, filtered, previous, compare, compareLabel, currentLabel };
+  const {
+    previous,
+    compare,
+    compareLabel,
+    currentLabel,
+    efficiency,
+    previousEfficiency,
+    ...filtered
+  } = result;
+  return {
+    data,
+    filtered,
+    previous,
+    compare,
+    compareLabel,
+    currentLabel,
+    efficiency,
+    previousEfficiency,
+  };
 }
