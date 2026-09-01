@@ -66,13 +66,13 @@ function IdfPage() {
       "Divisão",
       "Código item",
       "Quantidade",
-      "Data Recebimento",
+      "Data de CRIAÇÃO Inspeção",
+      "Data INICIO",
       "Status",
-      "Tipo Problema",
-      "Problema",
+      "Tipo de Problema",
       "Descrição item",
       "Fornecedor",
-      "Criticidade",
+      "Inspetor Inicio",
       "Nota NC",
       "Desfecho",
       "Data Desfecho",
@@ -87,13 +87,13 @@ function IdfPage() {
         r.divisao,
         r.codigoItem,
         r.quantidade,
-        r.dataRecebimento,
+        r.dataCriacaoInsp,
+        r.dataInicioInsp,
         r.status,
         r.tipoProblema,
-        r.problema,
         r.descricaoItem,
         r.fornecedor,
-        r.criticidade,
+        r.inspetorInicio,
         r.notaNC,
         r.desfecho || "",
         r.desfechoData || "",
@@ -231,14 +231,17 @@ function IdfPage() {
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-card">
               <tr className="text-left uppercase tracking-wider text-muted-foreground border-b">
-                <th className="py-2 pr-2">Data</th>
+                <th className="py-2 pr-2">Data início</th>
+                <th className="py-2 pr-2">Data criação</th>
                 <th className="py-2 pr-2">Processo</th>
                 <th className="py-2 pr-2">Divisão</th>
                 <th className="py-2 pr-2">Item</th>
+                <th className="py-2 pr-2 text-right">Qtd.</th>
                 <th className="py-2 pr-2">Descrição</th>
                 <th className="py-2 pr-2">Fornecedor</th>
                 <th className="py-2 pr-2">Status</th>
-                <th className="py-2 pr-2">Problema</th>
+                <th className="py-2 pr-2">Tipo de problema</th>
+                <th className="py-2 pr-2">Inspetor</th>
                 <th className="py-2 pr-2 text-center">Reincid.</th>
                 <th className="py-2 pr-2 text-center">Desfecho</th>
                 <th className="py-2 pr-2 text-right">Nota Auto</th>
@@ -249,14 +252,17 @@ function IdfPage() {
             <tbody>
               {rows.slice(0, 300).map((r, i) => (
                 <tr key={`${r.processo}__${r.codigoItem}__${r.lote ?? ""}__${i}`} className={`border-b last:border-0 hover:bg-muted/40 ${r.recorrencia ? "bg-destructive/5" : ""}`}>
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{r.dataRecebimento}</td>
+                  <td className="py-1.5 pr-2 whitespace-nowrap">{r.dataInicioInsp}</td>
+                  <td className="py-1.5 pr-2 whitespace-nowrap">{r.dataCriacaoInsp}</td>
                   <td className="py-1.5 pr-2 tabular-nums">{r.processo}</td>
                   <td className="py-1.5 pr-2">{r.divisao}</td>
                   <td className="py-1.5 pr-2">{r.codigoItem}</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums">{r.quantidade.toLocaleString("pt-BR")}</td>
                   <td className="py-1.5 pr-2 max-w-[220px] truncate">{r.descricaoItem}</td>
                   <td className="py-1.5 pr-2 font-medium">{r.fornecedor}</td>
                   <td className="py-1.5 pr-2"><StatusBadge s={r.status} /></td>
-                  <td className="py-1.5 pr-2 max-w-[180px] truncate text-muted-foreground">{r.problema || "—"}</td>
+                  <td className="py-1.5 pr-2 max-w-[180px] truncate text-muted-foreground">{r.tipoProblema || "—"}</td>
+                  <td className="py-1.5 pr-2 max-w-[180px] truncate">{r.inspetorInicio || "—"}</td>
                   <td className="py-1.5 pr-2 text-center"><ReincBadge row={r} /></td>
                   <td className="py-1.5 pr-2 text-center"><DesfechoBadge row={r} /></td>
                   <td className="py-1.5 pr-2 text-right tabular-nums text-muted-foreground">{r.notaNCAuto.toFixed(1)}</td>

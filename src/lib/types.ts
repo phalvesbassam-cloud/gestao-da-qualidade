@@ -11,11 +11,14 @@ export type IDFRow = {
   divisao: string;
   codigoItem: string;
   quantidade: number;
-  dataRecebimento: string; // dd/MM/yyyy
-  horaRecebimento: string;
-  dataInicioInsp: string;
-  horaInicioInsp: string;
+  dataCriacaoInsp: string; // campo oficial da aba IDF: Data de CRIAÇÃO Inspeção (coluna E)
+  dataInicioInsp: string;  // campo oficial da aba IDF: Data INICIO (coluna I)
+
+  // aliases legados mantidos para compatibilidade com componentes antigos
+  dataRecebimento: string;
   dataFimInsp: string;
+  horaRecebimento: string;
+  horaInicioInsp: string;
   horaFimInsp: string;
   status: string; // Aprovado | Aprovação condicional | Reprovado | ...
   tipoProblema: string;

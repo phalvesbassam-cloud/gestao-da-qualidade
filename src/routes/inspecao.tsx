@@ -53,7 +53,7 @@ const INSPETORES_VALIDOS = [
   "Leonardo Ap. Wohlers",
   "Douglas Lopes",
   "Estefany",
-  "SKIP",
+  "MASTER",
 ] as const;
 
 const META_PCT = 17; // meta individual mensal em %
@@ -66,15 +66,15 @@ function normalizeStr(s: string) {
     .trim();
 }
 
-/** Resolve o nome do inspetor para a forma canônica ou retorna null se inválido. */
+/** Resolve o nome do inspetor para uma forma canônica, incluindo o skip MASTER. */
 function resolveInspetor(raw: string): string | null {
   const v = (raw || "").trim();
   if (!v) return null;
   const n = normalizeStr(v);
-  if (n === "master") return "SKIP";
-  if (n === "skip") return "SKIP";
+  if (["(vazio)", "vazio", "-", "—", "n/a", "null", "undefined"].includes(n)) return null;
+  if (n === "master" || n === "skip") return "MASTER";
   for (const nome of INSPETORES_VALIDOS) {
-    if (nome === "SKIP") continue;
+    if (nome === "MASTER") continue;
     const nn = normalizeStr(nome);
     if (n === nn) return nome;
     // tolerância: primeiro nome + último nome
@@ -87,7 +87,9 @@ function resolveInspetor(raw: string): string | null {
       return nome;
     }
   }
-  return null;
+  // Novos inspetores também entram no ranking; nomes conhecidos continuam
+  // sendo consolidados pela forma canônica acima.
+  return v.replace(/\s+/g, " ");
 }
 
 type InspetorAgg = {
@@ -96,7 +98,7 @@ type InspetorAgg = {
   aprovados: number;
   reprovados: number;
   condicionais: number;
-  eficienciaPct: number; // participação % do volume total
+  eficienciaPct: number; // média dos percentuais mensais, igual à planilha oficial
   diffPP: number;        // diferença em pontos percentuais vs META_PCT
 };
 
@@ -108,22 +110,76 @@ function statusTag(s: string): "aprovado" | "reprovado" | "condicional" | "outro
   return "outro";
 }
 
-function aggregateInspetores(rows: IDFRow[], totalGeral: number): InspetorAgg[] {
-  const map = new Map<string, { total: number; ap: number; rep: number; cond: number }>();
+function aggregateInspetores(rows: IDFRow[], baseRows: IDFRow[]): InspetorAgg[] {
+  const monthKey = (r: IDFRow) => {
+    const d = r.dataReferencia;
+    if (!d) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+
+  // Total de inspeções por mês, igual ao bloco CONSOLIDADO da planilha antiga
+  const totalPorMes = new Map<string, number>();
+
+  for (const r of baseRows) {
+    const mes = monthKey(r);
+    if (!mes) continue;
+    totalPorMes.set(mes, (totalPorMes.get(mes) ?? 0) + 1);
+  }
+
+  const map = new Map<
+    string,
+    {
+      total: number;
+      ap: number;
+      rep: number;
+      cond: number;
+      porMes: Map<string, number>;
+    }
+  >();
+
   for (const r of rows) {
-    const nome = resolveInspetor(r.inspetorFinal || "");
+    const nome = resolveInspetor(r.inspetorInicio || "");
     if (!nome) continue;
-    const agg = map.get(nome) ?? { total: 0, ap: 0, rep: 0, cond: 0 };
+
+    const mes = monthKey(r);
+    if (!mes) continue;
+
+    const agg = map.get(nome) ?? {
+      total: 0,
+      ap: 0,
+      rep: 0,
+      cond: 0,
+      porMes: new Map<string, number>(),
+    };
+
     agg.total++;
+    agg.porMes.set(mes, (agg.porMes.get(mes) ?? 0) + 1);
+
     const tag = statusTag(r.status);
     if (tag === "aprovado") agg.ap++;
     else if (tag === "reprovado") agg.rep++;
     else if (tag === "condicional") agg.cond++;
+
     map.set(nome, agg);
   }
+
   const out: InspetorAgg[] = [];
+
   for (const [nome, a] of map) {
-    const efic = totalGeral ? (a.total / totalGeral) * 100 : 0;
+    // Regra da planilha:
+    // 1) eficiência mensal = inspeções do inspetor no mês / total de inspeções do mês
+    // 2) eficiência acumulada = média dos percentuais mensais disponíveis
+    const mesesComDados = [...totalPorMes.keys()];
+    const percentuaisMensais = mesesComDados.map((mes) => {
+      const totalMes = totalPorMes.get(mes) ?? 0;
+      const totalInspetorMes = a.porMes.get(mes) ?? 0;
+      return totalMes ? (totalInspetorMes / totalMes) * 100 : 0;
+    });
+    const efic =
+      percentuaisMensais.length > 0
+        ? percentuaisMensais.reduce((s, v) => s + v, 0) / percentuaisMensais.length
+        : 0;
+
     out.push({
       nome,
       total: a.total,
@@ -134,6 +190,8 @@ function aggregateInspetores(rows: IDFRow[], totalGeral: number): InspetorAgg[] 
       diffPP: Math.round((efic - META_PCT) * 10) / 10,
     });
   }
+
+  // Ranking por eficiência real, não por volume
   out.sort((x, y) => y.total - x.total);
   return out;
 }
@@ -161,15 +219,15 @@ const COLOR_INSPETOR: Record<string, string> = {
   "Jacklane Freire": "#FACC15",             // amarelo
   "Douglas Lopes": "#22D3EE",               // ciano
   "Ademar Ribas": "#FB923C",                // laranja
-  "SKIP": "#475569",                        // cinza escuro
+  "MASTER": "#475569",                      // sistema de skip
 };
 const colorFor = (nome: string) => COLOR_INSPETOR[nome] ?? "#64748b";
 
 function InspecaoPage() {
-  const { filtered } = useDashboardFiltered();
+  const { filtered, efficiency } = useDashboardFiltered();
 
   const allRows = useMemo(
-    () => filtered.idf.filter((r) => resolveInspetor(r.inspetorFinal || "") !== null),
+    () => filtered.idf.filter((r) => r.dataReferencia && resolveInspetor(r.inspetorInicio || "") !== null),
     [filtered.idf],
   );
 
@@ -189,18 +247,18 @@ function InspecaoPage() {
   const rows = useMemo(() => {
     if (selected.size === 0) return allRows;
     return allRows.filter((r) => {
-      const nome = resolveInspetor(r.inspetorFinal || "");
+      const nome = resolveInspetor(r.inspetorInicio || "");
       return nome != null && selected.has(nome);
     });
   }, [allRows, selected]);
 
   const totalGeral = allRows.length;
-  const inspetoresAll = useMemo(() => aggregateInspetores(allRows, totalGeral), [allRows, totalGeral]);
+  const inspetoresAll = useMemo(() => aggregateInspetores(allRows, allRows), [allRows]);
 
   const totalInsp = rows.length;
   const inspetores = useMemo(
-    () => aggregateInspetores(rows, selected.size === 0 ? totalInsp : totalGeral),
-    [rows, totalInsp, totalGeral, selected.size],
+    () => aggregateInspetores(rows, allRows),
+    [rows, allRows],
   );
 
   const totalReprovados = rows.filter((r) => statusTag(r.status) === "reprovado").length;
@@ -208,20 +266,17 @@ function InspecaoPage() {
   const taxaApr = totalInsp ? (totalAprovados / totalInsp) * 100 : 0;
   const taxaRep = totalInsp ? (totalReprovados / totalInsp) * 100 : 0;
 
-  const pendentes = useMemo(
-    () => rows.filter((r) => !r.dataFimInsp || !r.status).length,
-    [rows],
-  );
+  const pendentes = efficiency.pendentes;
+  const eficienciaOperacional = efficiency.percentual;
 
-  const totalAvaliados = inspetoresAll.filter((i) => i.nome !== "SKIP").length;
-  const acimaMeta = inspetoresAll.filter((i) => i.nome !== "SKIP" && i.eficienciaPct >= META_PCT).length;
+  const totalAvaliados = inspetoresAll.length;
+  const acimaMeta = inspetoresAll.filter((i) => i.eficienciaPct >= META_PCT).length;
   const eficienciaEquipe = inspetores.length
     ? Math.round((inspetores.reduce((s, i) => s + i.eficienciaPct, 0) / inspetores.length) * 10) / 10
     : 0;
 
-  const inspetoresAllNoSkip = inspetoresAll.filter((i) => i.nome !== "SKIP");
-  const melhor = inspetoresAllNoSkip[0];
-  const pior = inspetoresAllNoSkip.length > 1 ? inspetoresAllNoSkip[inspetoresAllNoSkip.length - 1] : undefined;
+  const melhor = inspetoresAll[0];
+  const pior = inspetoresAll.length > 1 ? inspetoresAll[inspetoresAll.length - 1] : undefined;
 
   const barEficiencia = useMemo(
     () => inspetores.map((i) => ({ nome: i.nome.split(" ")[0], nomeFull: i.nome, eficiencia: i.eficienciaPct, meta: META_PCT })),
@@ -255,10 +310,10 @@ function InspecaoPage() {
   const insights = useMemo(() => {
     const out: string[] = [];
     if (melhor && totalGeral) {
-      out.push(`${melhor.nome} realizou ${melhor.eficienciaPct.toFixed(1)}% das inspeções (${melhor.total}).`);
+      out.push(`${melhor.nome} está com eficiência acumulada de ${melhor.eficienciaPct.toFixed(1)}% (${melhor.total} inspeções).`);
     }
     out.push(`${acimaMeta} de ${totalAvaliados} inspetores ${acimaMeta === 1 ? "atingiu" : "atingiram"} a meta de ${META_PCT}%.`);
-    if (pendentes > 0) out.push(`${pendentes} inspeç${pendentes > 1 ? "ões" : "ão"} aguardando finalização.`);
+    if (pendentes > 0) out.push(`${pendentes} inspeç${pendentes > 1 ? "ões" : "ão"} sem data de início ou status.`);
     if (taxaApr >= 90) out.push(`Taxa de aprovação saudável: ${taxaApr.toFixed(1)}%.`);
     else if (taxaRep >= 10) out.push(`Atenção: taxa de reprovação em ${taxaRep.toFixed(1)}%.`);
     if (pior && pior.eficienciaPct < META_PCT) {
@@ -292,7 +347,7 @@ function InspecaoPage() {
               style={{ borderColor: colorFor(nome), boxShadow: `inset 0 0 0 1px ${colorFor(nome)}33` }}
             >
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: colorFor(nome) }} />
-              {nome === "SKIP" ? "SKIP" : nome.split(" ")[0]}
+              {nome === "MASTER" ? "MASTER" : nome.split(" ")[0]}
               <X className="h-3 w-3 opacity-70" />
             </button>
           ))}
@@ -307,26 +362,32 @@ function InspecaoPage() {
       )}
 
       {/* KPIs principais */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard
-          label="Inspeções realizadas"
-          value={totalInsp.toLocaleString("pt-BR")}
-          hint={`${inspetores.length} inspetores ativos`}
+          label="Recebidas"
+          value={efficiency.recebidas.toLocaleString("pt-BR")}
+          hint="Pela Data de Criação"
           tone="info"
           icon={<Activity className="h-4 w-4" />}
         />
         <KpiCard
-          label="Atingiram meta"
-          value={`${acimaMeta}/${inspetores.length}`}
-          hint={`Meta individual: ${META_PCT}%`}
-          tone={metaStatus.tone}
-          icon={<Target className="h-4 w-4" />}
+          label="Inspecionadas"
+          value={efficiency.inspecionadas.toLocaleString("pt-BR")}
+          hint="Pela Data de Início"
+          tone="success"
+          icon={<Check className="h-4 w-4" />}
+        />
+        <KpiCard
+          label="Eficiência operacional"
+          value={`${eficienciaOperacional.toFixed(1)}%`}
+          hint={`${efficiency.inspecionadas.toLocaleString("pt-BR")} ÷ ${efficiency.recebidas.toLocaleString("pt-BR")} × 100`}
+          tone={eficienciaOperacional >= 95 ? "success" : eficienciaOperacional >= 85 ? "warning" : "destructive"}
+          icon={<TrendingUp className="h-4 w-4" />}
         />
         <KpiCard
           label="Pendências"
           value={pendentes.toLocaleString("pt-BR")}
-          hint="Aguardando finalização"
+          hint="Sem data de início ou status"
           tone={pendentes > 0 ? "warning" : "success"}
           icon={<AlertTriangle className="h-4 w-4" />}
         />
@@ -350,18 +411,18 @@ function InspecaoPage() {
       <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
         <div className="card-premium rounded-xl border bg-card p-4">
           <div className="text-[12px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-emerald-400" /> Melhor inspetor
+            <Trophy className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Melhor inspetor
           </div>
-          <div className="mt-2 text-2xl font-display font-bold text-emerald-400 truncate">{melhor?.nome ?? "—"}</div>
+          <div className="mt-2 text-2xl font-display font-bold text-emerald-600 dark:text-emerald-400 truncate">{melhor?.nome ?? "—"}</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {melhor ? `${melhor.total} inspeções · ${melhor.eficienciaPct.toFixed(1)}% (${melhor.diffPP >= 0 ? "+" : ""}${melhor.diffPP.toFixed(1)} p.p.)` : "—"}
           </div>
         </div>
         <div className="card-premium rounded-xl border bg-card p-4">
           <div className="text-[12px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-400" /> Menor desempenho
+            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" /> Menor desempenho
           </div>
-          <div className="mt-2 text-2xl font-display font-bold text-red-400 truncate">{pior?.nome ?? "—"}</div>
+          <div className="mt-2 text-2xl font-display font-bold text-red-600 dark:text-red-400 truncate">{pior?.nome ?? "—"}</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {pior ? `${pior.total} inspeções · ${pior.eficienciaPct.toFixed(1)}% (${pior.diffPP >= 0 ? "+" : ""}${pior.diffPP.toFixed(1)} p.p.)` : "—"}
           </div>
@@ -403,7 +464,7 @@ function InspecaoPage() {
       >
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {inspetoresAll.map((i, idx) => {
-            const isSkip = i.nome === "SKIP";
+            const isMaster = i.nome === "MASTER";
             const tone = toneFor(i.eficienciaPct);
             const dot = tone === "success" ? "🟢" : tone === "warning" ? "🟡" : "🔴";
             const efClass =
@@ -430,11 +491,11 @@ function InspecaoPage() {
                     className="relative h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm text-foreground shrink-0"
                     style={{ background: `${color}22`, border: `1px solid ${color}55` }}
                   >
-                    {isSkip ? "—" : initials(i.nome)}
-                    {!isSkip && idx < 3 && (
+                    {initials(i.nome)}
+                    {idx < 3 && (
                       <span className="absolute -top-1 -right-1">
                         {idx === 0 && <Trophy className="h-4 w-4 text-amber-400" />}
-                        {idx === 1 && <Medal className="h-4 w-4 text-slate-300" />}
+                        {idx === 1 && <Medal className="h-4 w-4 text-slate-500 dark:text-slate-300" />}
                         {idx === 2 && <Award className="h-4 w-4 text-amber-700" />}
                       </span>
                     )}
@@ -442,7 +503,7 @@ function InspecaoPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold truncate text-foreground">{i.nome}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      {isSkip ? "Categoria operacional" : `#${idx + 1} · ${i.total} inspeções`}
+                      {isMaster ? `Sistema de skip · #${idx + 1} · ${i.total} inspeções` : `#${idx + 1} · ${i.total} inspeções`}
                     </div>
                   </div>
                   {isSelected ? (
@@ -453,40 +514,27 @@ function InspecaoPage() {
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   ) : (
-                    !isSkip && (
-                      <span className="text-lg" title={`${i.eficienciaPct}% vs meta ${META_PCT}%`}>{dot}</span>
-                    )
+                    <span className="text-lg" title={`${i.eficienciaPct}% vs meta ${META_PCT}%`}>{dot}</span>
                   )}
                 </div>
 
-                {isSkip ? (
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <div className="text-2xl font-display font-bold tabular-nums text-foreground">
-                      {i.total.toLocaleString("pt-BR")}
-                    </div>
-                    <div className="text-xs text-muted-foreground">inspeções</div>
+                <div className="grid grid-cols-3 gap-2 text-center mt-1">
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Efic.</div>
+                    <div className={cn("text-sm font-bold tabular-nums", efClass)}>{i.eficienciaPct.toFixed(1)}%</div>
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-3 gap-2 text-center mt-1">
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase">Efic.</div>
-                        <div className={cn("text-sm font-bold tabular-nums", efClass)}>{i.eficienciaPct.toFixed(1)}%</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase">vs Meta</div>
-                        <div className={cn("text-sm font-bold tabular-nums", efClass)}>
-                          {i.diffPP >= 0 ? "+" : ""}{i.diffPP.toFixed(1)} p.p.
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-muted-foreground uppercase">Reprov.</div>
-                        <div className="text-sm font-bold text-red-400 tabular-nums">{i.reprovados}</div>
-                      </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">vs Meta</div>
+                    <div className={cn("text-sm font-bold tabular-nums", efClass)}>
+                      {i.diffPP >= 0 ? "+" : ""}{i.diffPP.toFixed(1)} p.p.
                     </div>
-                    <div className="text-[10px] text-muted-foreground text-center">Meta: {META_PCT}%</div>
-                  </>
-                )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Reprov.</div>
+                    <div className="text-sm font-bold text-red-500 dark:text-red-400 tabular-nums">{i.reprovados}</div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground text-center">Meta: {META_PCT}%</div>
               </button>
             );
           })}
@@ -504,10 +552,10 @@ function InspecaoPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={barEficiencia} layout="vertical" margin={{ left: 24 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis type="number" stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <YAxis type="category" dataKey="nome" stroke="rgba(255,255,255,0.6)" fontSize={11} width={80} />
-                <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid #1e293b" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis type="number" stroke="var(--color-muted-foreground)" fontSize={11} />
+                <YAxis type="category" dataKey="nome" stroke="var(--color-muted-foreground)" fontSize={11} width={80} />
+                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
                 <Bar dataKey="eficiencia" radius={[0, 6, 6, 0]}>
                   {barEficiencia.map((d, i) => {
                     const t = toneFor(d.eficiencia);
@@ -524,10 +572,10 @@ function InspecaoPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={barInspecoes}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="nome" stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid #1e293b" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="nome" stroke="var(--color-muted-foreground)" fontSize={11} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
+                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
                 <Bar dataKey="total" radius={[6, 6, 0, 0]} isAnimationActive={false}>
                   {barInspecoes.map((d, i) => (
                     <Cell key={i} fill={colorFor(d.nomeFull)} />
@@ -543,10 +591,10 @@ function InspecaoPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={aprXRep}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="nome" stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid #1e293b" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="nome" stroke="var(--color-muted-foreground)" fontSize={11} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
+                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="aprovados" fill="#34d399" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="reprovados" fill="#fb7185" radius={[6, 6, 0, 0]} />
@@ -559,10 +607,10 @@ function InspecaoPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <LineChart data={evolucaoMensal}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="mes" stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid #1e293b" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="mes" stroke="var(--color-muted-foreground)" fontSize={11} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
+                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
                 <Line type="monotone" dataKey="total" stroke="#a78bfa" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
@@ -570,21 +618,21 @@ function InspecaoPage() {
         </SectionCard>
 
         <SectionCard
-          title="Ranking de participação por inspetor"
+          title="Participação por volume de inspeções"
           className="lg:col-span-2"
           printable
-          printTitle="Ranking de participação por inspetor"
+          printTitle="Participação por volume de inspeções"
         >
           <div className="h-72">
             <ResponsiveContainer>
               <PieChart>
                 <Pie data={donut} dataKey="value" nameKey="nome" innerRadius={55} outerRadius={95} paddingAngle={2} isAnimationActive={false}>
                   {donut.map((d, i) => (
-                    <Cell key={i} fill={colorFor(d.nomeFull)} stroke="rgba(15,23,42,0.6)" strokeWidth={1} />
+                    <Cell key={i} fill={colorFor(d.nomeFull)} stroke="var(--color-card)" strokeWidth={1} />
                   ))}
 
                 </Pie>
-                <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid #1e293b" }} />
+                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>

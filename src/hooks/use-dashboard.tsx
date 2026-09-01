@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AlertaRow, DashboardData, IDFRow, RNCRow } from "@/lib/types";
+import { parseBrDate } from "@/lib/idf-calc";
 
 export type MultiFilter = string[]; // empty = todos
 
@@ -163,7 +164,7 @@ function filterAll(
   const idf = safeData.idf.filter((r) => {
     if (!inMulti(r.divisao, f.divisao)) return false;
     if (!inMulti(r.fornecedor, f.fornecedor)) return false;
-    if (!inMulti(r.inspetorFinal, f.inspetor)) return false;
+    if (!inMulti(r.inspetorInicio, f.inspetor)) return false;
     if (!inMulti(r.criticidade, f.criticidade)) return false;
     if (!inMulti(r.tipoProblema, f.tipoProblema)) return false;
     if (f.classificacao.length && !f.classificacao.includes(clsMap.get(r.fornecedor) || "")) return false;
@@ -257,6 +258,40 @@ function filterAll(
   return { idf, alerta, rnc };
 }
 
+export type InspectionEfficiencySummary = {
+  recebidas: number;
+  inspecionadas: number;
+  pendentes: number;
+  percentual: number;
+  recebidasRows: IDFRow[];
+  inspecionadasRows: IDFRow[];
+};
+
+function calculateInspectionEfficiency(
+  data: DashboardData,
+  filters: Filters,
+  from: Date | null,
+  to: Date | null,
+): InspectionEfficiencySummary {
+  // Mantém todos os filtros de negócio, mas aplica o período separadamente:
+  // recebidas pela Data de Criação e inspecionadas pela Data de Início.
+  const baseRows = filterAll(data, filters, null, null, false).idf;
+  const isInWindow = (date: Date | null) => Boolean(date) && dateOk(date, from, to, true);
+  const recebidasRows = baseRows.filter((row) => isInWindow(parseBrDate(row.dataCriacaoInsp)));
+  const inspecionadasRows = baseRows.filter((row) => isInWindow(row.dataReferencia));
+  const recebidas = recebidasRows.length;
+  const inspecionadas = inspecionadasRows.length;
+
+  return {
+    recebidas,
+    inspecionadas,
+    pendentes: Math.max(0, recebidas - inspecionadas),
+    percentual: recebidas > 0 ? (inspecionadas / recebidas) * 100 : 0,
+    recebidasRows,
+    inspecionadasRows,
+  };
+}
+
 const DAY = 24 * 60 * 60 * 1000;
 
 function computeCompareWindows(
@@ -315,6 +350,7 @@ export function useFilteredData(data: DashboardData) {
     }
 
     const current = filterAll(data, safeFilters, from, to, false);
+    const efficiency = calculateInspectionEfficiency(data, safeFilters, from, to);
 
     let previous: { idf: IDFRow[]; alerta: AlertaRow[]; rnc: RNCRow[] } | null = null;
     let compareLabel: string | null = null;
@@ -333,6 +369,8 @@ export function useFilteredData(data: DashboardData) {
         currentLabel = `${fmt(win.curFrom!)}–${fmt(win.curTo!)}`;
         return {
           ...cur,
+          efficiency: calculateInspectionEfficiency(data, safeFilters, win.curFrom, win.curTo),
+          previousEfficiency: calculateInspectionEfficiency(data, safeFilters, win.prevFrom, win.prevTo),
           previous,
           compare: true as const,
           compareLabel,
@@ -343,6 +381,8 @@ export function useFilteredData(data: DashboardData) {
 
     return {
       ...current,
+      efficiency,
+      previousEfficiency: null as InspectionEfficiencySummary | null,
       previous: null,
       compare: false as const,
       compareLabel: null as string | null,

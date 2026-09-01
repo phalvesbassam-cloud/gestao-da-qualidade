@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   ClipboardCheck,
@@ -22,10 +22,6 @@ import {
   ScanBarcode,
   Cog,
   CalendarDays,
-  ChevronDown,
-  ChevronUp,
-  Pin,
-  PinOff,
   Activity,
 } from "lucide-react";
 
@@ -38,10 +34,9 @@ import { ptBR } from "date-fns/locale";
 
 import { getDashboardData } from "@/lib/sheets.functions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MultiSelect } from "@/components/multi-select";
-import { FiltersProvider, useFilters, useTheme, useTvController } from "@/hooks/use-dashboard";
+import { FiltersProvider, useFilters, useTheme, useTvController, type Filters } from "@/hooks/use-dashboard";
 import { TvControls } from "@/components/tv-controls";
 import { ErrorBoundary } from "@/components/error-boundary";
 import type { DashboardData } from "@/lib/types";
@@ -58,6 +53,28 @@ const NAV = [
   { to: "/auditoria", label: "Auditoria", icon: History },
   { to: "/admin", label: "Admin", icon: Settings },
 ] as const;
+
+function countActiveFilters(filters: Filters): number {
+  return (
+    filters.divisao.length +
+    filters.fornecedor.length +
+    filters.inspetor.length +
+    filters.criticidade.length +
+    filters.tipoProblema.length +
+    filters.classificacao.length +
+    filters.statusRNC.length +
+    filters.statusAlerta.length +
+    filters.status.length +
+    filters.origem.length +
+    (filters.item ? 1 : 0) +
+    (filters.processo ? 1 : 0) +
+    (filters.search ? 1 : 0) +
+    (filters.from ? 1 : 0) +
+    (filters.to ? 1 : 0) +
+    (filters.compare ? 1 : 0) +
+    (filters.recorrencia !== "todas" ? 1 : 0)
+  );
+}
 
 export function AppShell() {
   return (
@@ -80,6 +97,8 @@ function Shell() {
   const { filters } = useFilters();
   const { dark, mounted, toggle: toggleTheme } = useTheme();
   const [hover, setHover] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = countActiveFilters(filters);
 
   const navigateTo = useCallback(
     (to: string) => { router.navigate({ to }); },
@@ -166,6 +185,22 @@ function Shell() {
             <PageTitle />
             <div className="flex-1" />
             <div className="tv-hide flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={filtersOpen ? "secondary" : "ghost"}
+                onClick={() => setFiltersOpen((open) => !open)}
+                title={filtersOpen ? "Fechar filtros" : "Abrir filtros"}
+                aria-expanded={filtersOpen}
+                aria-controls="dashboard-filters"
+              >
+                <Filter className="h-4 w-4" />
+                <span className="hidden md:inline ml-1">Filtros</span>
+                {activeFilterCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px] font-semibold">
+                    {activeFilterCount}
+                  </Badge>
+                )}
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => q.refetch()} disabled={q.isFetching} title="Atualizar">
                 <RefreshCw className={cn("h-4 w-4", q.isFetching && "animate-spin")} />
                 <span className="hidden md:inline ml-1">Atualizar</span>
@@ -185,7 +220,7 @@ function Shell() {
               </div>
             )}
           </div>
-          <FilterBar data={q.data} />
+          <FilterBar data={q.data} open={filtersOpen} onClose={() => setFiltersOpen(false)} />
         </header>
 
         <main className={cn("flex-1 p-4 md:p-6", tv && "tv-fade")} key={tv ? location.pathname : undefined}>
@@ -232,7 +267,15 @@ function PageTitle() {
   );
 }
 
-function FilterBar({ data }: { data?: DashboardData }) {
+function FilterBar({
+  data,
+  open,
+  onClose,
+}: {
+  data?: DashboardData;
+  open: boolean;
+  onClose: () => void;
+}) {
   const { filters, setFilters, reset } = useFilters();
 
   const fornecedores = useMemo(
@@ -244,59 +287,14 @@ function FilterBar({ data }: { data?: DashboardData }) {
     return [...new Set(data.rnc.map((r) => r.statusRNC).filter(Boolean))].sort();
   }, [data]);
 
-  const activeCount =
-    filters.divisao.length +
-    filters.fornecedor.length +
-    filters.statusRNC.length +
-    filters.statusAlerta.length +
-    filters.status.length +
-    (filters.item ? 1 : 0) +
-    (filters.processo ? 1 : 0) +
-    (filters.search ? 1 : 0) +
-    (filters.from ? 1 : 0) +
-    (filters.to ? 1 : 0) +
-    (filters.compare ? 1 : 0) +
-    (filters.recorrencia !== "todas" ? 1 : 0);
+  const activeCount = countActiveFilters(filters);
   const hasFilters = activeCount > 0;
 
-  // Auto-recolher ao rolar
-  const [pinned, setPinned] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [hovering, setHovering] = useState(false);
-  const [manualOpen, setManualOpen] = useState(true);
-  const leaveTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => () => {
-    if (leaveTimer.current) window.clearTimeout(leaveTimer.current);
-  }, []);
-
-  const collapsed = scrolled && !pinned && !manualOpen;
-  const showPanel = !collapsed || hovering;
-  const floating = collapsed && hovering;
-
-  const handleEnter = () => {
-    if (leaveTimer.current) { window.clearTimeout(leaveTimer.current); leaveTimer.current = null; }
-    if (collapsed) setHovering(true);
-  };
-  const handleLeave = () => {
-    if (leaveTimer.current) window.clearTimeout(leaveTimer.current);
-    leaveTimer.current = window.setTimeout(() => setHovering(false), 140);
-  };
+  if (!open) return null;
 
   return (
-    <div
-      className="tv-hide relative"
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-    >
-      {/* Aba compacta (sempre visível) */}
+    <div id="dashboard-filters" className="tv-hide relative">
+      {/* Cabeçalho do painel aberto */}
       <div className="filter-tab">
         <Filter className="h-3.5 w-3.5 text-primary" />
         <span className="font-semibold uppercase tracking-wider text-[11px] text-muted-foreground">
@@ -348,31 +346,15 @@ function FilterBar({ data }: { data?: DashboardData }) {
         <button
           type="button"
           className="filter-tab-btn"
-          data-active={pinned ? "true" : "false"}
-          onClick={() => setPinned((p) => !p)}
-          title={pinned ? "Desfixar filtros" : "Fixar filtros abertos"}
+          onClick={onClose}
+          title="Fechar filtros"
+          aria-label="Fechar filtros"
         >
-          {pinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          type="button"
-          className="filter-tab-btn"
-          onClick={() => setManualOpen((o) => !o)}
-          title={showPanel ? "Ocultar filtros" : "Mostrar filtros"}
-        >
-          {showPanel ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Painel completo — sempre montado, colapsa com grid-rows */}
-      <div
-        className={cn(
-          "filter-panel-wrap",
-          showPanel ? "filter-panel-wrap--open" : "filter-panel-wrap--closed",
-          floating && "filter-panel-wrap--floating",
-        )}
-        aria-hidden={!showPanel}
-      >
+      <div className="filter-panel-wrap filter-panel-wrap--open">
         <div className="filter-panel-inner">
           <div className="filter-shell px-4 md:px-6 py-3 space-y-2.5">
 

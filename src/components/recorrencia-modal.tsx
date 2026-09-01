@@ -34,10 +34,10 @@ export function ReincBadge({ row }: { row: IDFRow }) {
   // Histórico completo do trio fornecedor+item+problema
   const history = useMemo(() => {
     if (!data) return [row];
-    const key = `${norm(row.fornecedor)}|${norm(row.codigoItem)}|${norm(row.problema || row.tipoProblema)}`;
+    const key = `${norm(row.fornecedor)}|${norm(row.codigoItem)}|${norm(row.tipoProblema || row.problema)}`;
     return data.idf
       .filter((r) =>
-        `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.problema || r.tipoProblema)}` === key,
+        `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.tipoProblema || r.problema)}` === key,
       )
       .sort((a, b) => {
         const da = a.dataReferencia?.getTime() ?? 0;
@@ -70,7 +70,7 @@ export function ReincBadge({ row }: { row: IDFRow }) {
           <DialogDescription>
             <span className="font-medium text-foreground">{row.fornecedor}</span> · Item{" "}
             <span className="font-medium text-foreground">{row.codigoItem}</span> ·{" "}
-            <span className="font-medium text-foreground">{row.problema || row.tipoProblema || "—"}</span>
+            <span className="font-medium text-foreground">{row.tipoProblema || row.problema || "—"}</span>
             <br />
             <span className="text-xs">
               {history.length} ocorrência(s) no histórico · {n} reincidência(s) válida(s) dentro da janela.
@@ -107,7 +107,7 @@ function Timeline({ rows, highlightProcesso }: { rows: IDFRow[]; highlightProces
             >
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="font-semibold tabular-nums">{r.dataRecebimento || "—"}</span>
+                <span className="font-semibold tabular-nums">{r.dataInicioInsp || "—"}</span>
                 <Badge variant="secondary" className="text-[10px]">Proc. {r.processo}</Badge>
                 {r.divisao && <Badge variant="outline" className="text-[10px]">{r.divisao}</Badge>}
                 {isReinc && (

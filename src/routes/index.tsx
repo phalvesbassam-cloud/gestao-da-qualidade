@@ -41,7 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function ConsolidadoPage() {
-  const { filtered, previous, compare } = useDashboardFiltered();
+  const { filtered, previous, compare, efficiency, previousEfficiency } = useDashboardFiltered();
   const navigate = useNavigate();
   const idf = filtered.idf;
   const alertas = filtered.alerta;
@@ -57,21 +57,10 @@ function ConsolidadoPage() {
   const repr = idf.filter((r) => lower(r.status).includes("reprov")).length;
   const idfGlobal = totalInsp > 0 ? Math.round((aprov / totalInsp) * 1000) / 10 : 0;
 
-  // Eficiência de Inspeção de Recebimento
-  // Totais consolidados no período (independentes):
-  // Recebidos = soma de itens com data na coluna I (dataRecebimento)
-  // Inspecionados = soma de itens com data na coluna E (dataFimInsp)
-  // Pode ultrapassar 100% (inspeções finalizam SKUs acumulados de períodos anteriores).
-  const hasDate = (v: unknown) => String(v ?? "").trim() !== "";
-  const skusRecebidos = idf.filter((r) => hasDate(r.dataRecebimento)).length;
-  const skusInspecionados = idf.filter((r) => hasDate(r.dataFimInsp)).length;
-  const skusPendentes = Math.max(0, skusRecebidos - skusInspecionados);
-  const eficienciaPrev = useMemo(() => {
-    if (!compare || !previous) return null;
-    const rec = previous.idf.filter((r) => hasDate(r.dataRecebimento)).length;
-    const ins = previous.idf.filter((r) => hasDate(r.dataFimInsp)).length;
-    return rec > 0 ? (ins / rec) * 100 : 0;
-  }, [compare, previous]);
+  // Eficiência operacional da aba IDF:
+  // Recebidas = registros com Data de Criação
+  // Inspecionadas = registros com Data de Início
+  const eficienciaPrev = compare ? previousEfficiency?.percentual ?? null : null;
 
   // métricas anteriores (modo comparação)
   const prev = useMemo(() => {
@@ -213,7 +202,7 @@ function ConsolidadoPage() {
       const s = lower(r.status);
       const isNC = s.includes("reprov") || s.includes("condicional");
       if (!isNC) continue;
-      const nome = (r.problema || r.tipoProblema || "").trim() || "Não informado";
+      const nome = (r.tipoProblema || r.problema || "").trim() || "Não informado";
       map.set(nome, (map.get(nome) ?? 0) + 1);
     }
     const arr = [...map.entries()]
@@ -231,12 +220,11 @@ function ConsolidadoPage() {
   }, [idf]);
   const paretoTotal = pareto.reduce((s, x) => s + x.qtd, 0);
 
-  // Eficiência mensal: Recebido conta por mês da dataRecebimento (col I);
-  // Inspecionado conta por mês da dataFimInsp (col E) — independentes.
+  // Eficiência mensal: recebida pela Data de Criação e inspecionada pela Data de Início.
   const eficienciaMensal = useMemo(() => {
-    const buckets = new Map<number, { rec: number; ins: number }>();
-    const bump = (m: number, key: "rec" | "ins") => {
-      const b = buckets.get(m) ?? { rec: 0, ins: 0 };
+    const buckets = new Map<number, { criadas: number; iniciadas: number }>();
+    const bump = (m: number, key: "criadas" | "iniciadas") => {
+      const b = buckets.get(m) ?? { criadas: 0, iniciadas: 0 };
       b[key]++;
       buckets.set(m, b);
     };
@@ -250,22 +238,24 @@ function ConsolidadoPage() {
       if (yy !== YEAR) return null;
       return mm >= 1 && mm <= 12 ? mm - 1 : null;
     };
-    for (const r of idf) {
-      const mr = monthOf(r.dataRecebimento);
-      if (mr !== null) bump(mr, "rec");
-      const mi = monthOf(r.dataFimInsp);
-      if (mi !== null) bump(mi, "ins");
+    for (const r of efficiency.recebidasRows) {
+      const mc = monthOf(r.dataCriacaoInsp);
+      if (mc !== null) bump(mc, "criadas");
+    }
+    for (const r of efficiency.inspecionadasRows) {
+      const mi = monthOf(r.dataInicioInsp);
+      if (mi !== null) bump(mi, "iniciadas");
     }
     const rows = MESES_PT.map((mes, i) => {
-      const b = buckets.get(i) ?? { rec: 0, ins: 0 };
-      const efic = b.rec > 0 ? Math.round((b.ins / b.rec) * 100) : 0;
-      return { mes, mesCurto: mes.slice(0, 3), recebido: b.rec, inspecionado: b.ins, efic };
+      const b = buckets.get(i) ?? { criadas: 0, iniciadas: 0 };
+      const efic = b.criadas > 0 ? Math.round((b.iniciadas / b.criadas) * 100) : 0;
+      return { mes, mesCurto: mes.slice(0, 3), criadas: b.criadas, iniciadas: b.iniciadas, efic };
     });
-    const totRec = rows.reduce((s, r) => s + r.recebido, 0);
-    const totIns = rows.reduce((s, r) => s + r.inspecionado, 0);
-    const totEfic = totRec > 0 ? Math.round((totIns / totRec) * 100) : 0;
-    return { rows, totRec, totIns, totEfic };
-  }, [idf]);
+    const totCriadas = rows.reduce((s, r) => s + r.criadas, 0);
+    const totIniciadas = rows.reduce((s, r) => s + r.iniciadas, 0);
+    const totEfic = totCriadas > 0 ? Math.round((totIniciadas / totCriadas) * 100) : 0;
+    return { rows, totCriadas, totIniciadas, totEfic };
+  }, [efficiency]);
 
   const top5 = ranking.slice(0, 5);
   const bottom5 = [...ranking].reverse().slice(0, 5);
@@ -288,9 +278,9 @@ function ConsolidadoPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <EficienciaInspecaoCard
-          recebidos={skusRecebidos}
-          inspecionados={skusInspecionados}
-          pendentes={skusPendentes}
+          criadas={efficiency.recebidas}
+          iniciadas={efficiency.inspecionadas}
+          pendentes={efficiency.pendentes}
           previousPct={eficienciaPrev}
           onClick={() => navigate({ to: "/idf" })}
         />
@@ -355,7 +345,7 @@ function ConsolidadoPage() {
       <SectionCard
         printable
         className="print-efficiency-card"
-        printTitle="Eficiência de Inspeção — Mensal (Recebido x Inspecionado)"
+        printTitle="Eficiência de Inspeção — Mensal (Recebidas x Inspecionadas)"
         title={
           <span className="inline-flex items-center gap-2 flex-wrap">
             <span>Eficiência de Inspeção — Mensal</span>
@@ -374,8 +364,8 @@ function ConsolidadoPage() {
             <YAxis yAxisId="right" orientation="right" stroke="var(--color-muted-foreground)" fontSize={12} tickFormatter={(v) => `${v}%`} domain={[0, (dataMax: number) => Math.max(120, Math.ceil((dataMax + 20) / 50) * 50)]} allowDataOverflow={false} />
             <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="left" dataKey="recebido" name="Recebido" fill="var(--color-chart-insp)" radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="left" dataKey="inspecionado" name="Inspecionado" fill="var(--color-chart-approved)" radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="left" dataKey="criadas" name="Recebidas" fill="var(--color-chart-insp)" radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="left" dataKey="iniciadas" name="Inspecionadas" fill="var(--color-chart-approved)" radius={[4, 4, 0, 0]} />
             <Line yAxisId="right" type="monotone" dataKey="efic" name="Eficiência %" stroke="var(--color-warning)" strokeWidth={2.5} dot={{ r: 4 }} />
             <ReferenceLine yAxisId="right" y={95} stroke="var(--color-success)" strokeDasharray="6 4" label={{ value: "Meta 95%", position: "right", fill: "var(--color-success)", fontSize: 11, fontWeight: 700 }} />
           </ComposedChart>
@@ -391,20 +381,20 @@ function ConsolidadoPage() {
             </thead>
             <tbody className="tabular-nums">
               <tr className="border-b">
-                <td className="py-1 pr-2 font-semibold italic">Recebido</td>
-                {eficienciaMensal.rows.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.recebido.toLocaleString("pt-BR")}</td>)}
-                <td className="py-1 px-2 text-right font-semibold">{eficienciaMensal.totRec.toLocaleString("pt-BR")}</td>
+                <td className="py-1 pr-2 font-semibold italic">Recebidas</td>
+                {eficienciaMensal.rows.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.criadas.toLocaleString("pt-BR")}</td>)}
+                <td className="py-1 px-2 text-right font-semibold">{eficienciaMensal.totCriadas.toLocaleString("pt-BR")}</td>
               </tr>
               <tr className="border-b">
-                <td className="py-1 pr-2 font-semibold italic">Inspecionado</td>
-                {eficienciaMensal.rows.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.inspecionado.toLocaleString("pt-BR")}</td>)}
-                <td className="py-1 px-2 text-right font-semibold">{eficienciaMensal.totIns.toLocaleString("pt-BR")}</td>
+                <td className="py-1 pr-2 font-semibold italic">Inspecionadas</td>
+                {eficienciaMensal.rows.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.iniciadas.toLocaleString("pt-BR")}</td>)}
+                <td className="py-1 px-2 text-right font-semibold">{eficienciaMensal.totIniciadas.toLocaleString("pt-BR")}</td>
               </tr>
               <tr>
                 <td className="py-1 pr-2 font-semibold italic">Efic.</td>
                 {eficienciaMensal.rows.map((m) => (
-                  <td key={m.mes} className={`py-1 px-2 text-right font-semibold ${m.recebido === 0 ? "text-muted-foreground" : m.efic >= 95 ? "text-success" : m.efic >= 85 ? "text-warning" : "text-destructive"}`}>
-                    {m.recebido > 0 ? `${m.efic}%` : "—"}
+                  <td key={m.mes} className={`py-1 px-2 text-right font-semibold ${m.criadas === 0 ? "text-muted-foreground" : m.efic >= 95 ? "text-success" : m.efic >= 85 ? "text-warning" : "text-destructive"}`}>
+                    {m.criadas > 0 ? `${m.efic}%` : "—"}
                   </td>
                 ))}
                 <td className={`py-1 px-2 text-right font-semibold ${eficienciaMensal.totEfic >= 95 ? "text-success" : eficienciaMensal.totEfic >= 85 ? "text-warning" : "text-destructive"}`}>{eficienciaMensal.totEfic}%</td>

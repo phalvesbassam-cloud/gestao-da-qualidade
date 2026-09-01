@@ -110,57 +110,198 @@ export function overrideKey(processo: string, codigoItem: string, lote: string):
   return `${processo}__${codigoItem}__${lote}`;
 }
 
+type IDFColumnKey =
+  | "processo"
+  | "divisao"
+  | "codigoItem"
+  | "quantidade"
+  | "dataCriacaoInsp"
+  | "dataInicioInsp"
+  | "horaRecebimento"
+  | "horaInicioInsp"
+  | "horaFimInsp"
+  | "status"
+  | "tipoProblema"
+  | "problema"
+  | "descricaoProblema"
+  | "descricaoItem"
+  | "fornecedor"
+  | "lote"
+  | "criticidade"
+  | "nivel"
+  | "codigoFornecedor"
+  | "inspetorInicio"
+  | "inspetorFinal"
+  | "atencao";
+
+type IDFColumnSpec = {
+  headers: readonly string[];
+  fallbackIndex: number;
+};
+
+// Fonte única para a interpretação da aba IDF. Os cabeçalhos oficiais vêm
+// primeiro; os nomes antigos permanecem como aliases para a planilha publicada
+// continuar funcionando enquanto os títulos são atualizados.
+const IDF_COLUMN_SPECS: Record<IDFColumnKey, IDFColumnSpec> = {
+  processo: { headers: ["Processo"], fallbackIndex: 0 },
+  divisao: { headers: ["Divisão", "Divisao"], fallbackIndex: 1 },
+  codigoItem: { headers: ["Código item", "Codigo item", "Código do item"], fallbackIndex: 2 },
+  quantidade: { headers: ["Quantidade", "Qtde", "Qtd"], fallbackIndex: 3 },
+  dataCriacaoInsp: {
+    headers: [
+      "Data de CRIAÇÃO",
+      "Data de CRIAÇÃO Inspeção",
+      "Data CRIAÇÃO Inspeção",
+      "Data de criação da inspeção",
+      "Data de Finalização Inspeção",
+    ],
+    fallbackIndex: 4,
+  },
+  dataInicioInsp: {
+    headers: [
+      "Data de INICIO Inspeção",
+      "Data INICIO",
+      "Data de INICIO",
+      "Data INICIO Inspeção",
+      "Data (Recebimento)",
+      "Data Recebimento",
+      "Data de Recebimento",
+    ],
+    fallbackIndex: 8,
+  },
+  horaRecebimento: {
+    headers: ["Horário Início (Recebimento)", "Horario Inicio (Recebimento)"],
+    fallbackIndex: 5,
+  },
+  horaInicioInsp: {
+    headers: ["Horário de Início Inspeção", "Horario de Inicio Inspecao"],
+    fallbackIndex: 7,
+  },
+  horaFimInsp: {
+    headers: ["Horário de Finalização Inspeção", "Horario de Finalizacao Inspecao"],
+    fallbackIndex: 9,
+  },
+  status: { headers: ["Status"], fallbackIndex: 10 },
+  tipoProblema: { headers: ["Tipo de Problema", "Tipo Problema"], fallbackIndex: 11 },
+  problema: { headers: ["Problema"], fallbackIndex: 12 },
+  descricaoProblema: {
+    headers: ["Descrição do Problema", "Descricao do Problema"],
+    fallbackIndex: 13,
+  },
+  descricaoItem: { headers: ["Descrição item", "Descricao item", "Descrição do item"], fallbackIndex: 14 },
+  fornecedor: { headers: ["Fornecedor"], fallbackIndex: 15 },
+  lote: { headers: ["LOTE", "Lote"], fallbackIndex: 16 },
+  criticidade: { headers: ["Criticidade"], fallbackIndex: 17 },
+  nivel: { headers: ["Nível", "Nivel"], fallbackIndex: 18 },
+  codigoFornecedor: {
+    headers: ["Código Fornecedor", "Codigo Fornecedor", "Código Fronecedor", "Codigo Fronecedor"],
+    fallbackIndex: 19,
+  },
+  inspetorInicio: { headers: ["Inspetor Inicio", "Inspetor Início"], fallbackIndex: 20 },
+  inspetorFinal: { headers: ["Inspetor Final"], fallbackIndex: 21 },
+  atencao: { headers: ["Atenção", "Atencao"], fallbackIndex: 22 },
+};
+
+function normalizeHeader(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function findIDFHeaderRow(rows: readonly unknown[][]): number {
+  const expected = ["processo", "divisao", "codigo item", "quantidade", "status"];
+  let bestIndex = 0;
+  let bestScore = -1;
+
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const cells = new Set((rows[i] ?? []).map(normalizeHeader));
+    const score = expected.reduce((total, header) => total + (cells.has(header) ? 1 : 0), 0);
+    if (score > bestScore) {
+      bestIndex = i;
+      bestScore = score;
+    }
+  }
+
+  return bestIndex;
+}
+
+function resolveIDFColumns(header: readonly unknown[]): Record<IDFColumnKey, number> {
+  const headerIndex = new Map<string, number>();
+
+  header.forEach((cell, index) => {
+    const normalized = normalizeHeader(cell);
+    if (normalized && !headerIndex.has(normalized)) headerIndex.set(normalized, index);
+  });
+
+  const resolved = {} as Record<IDFColumnKey, number>;
+
+  for (const key of Object.keys(IDF_COLUMN_SPECS) as IDFColumnKey[]) {
+    const spec = IDF_COLUMN_SPECS[key];
+    const byHeader = spec.headers
+      .map((name) => headerIndex.get(normalizeHeader(name)))
+      .find((index): index is number => index !== undefined);
+    resolved[key] = byHeader ?? spec.fallbackIndex;
+  }
+
+  return resolved;
+}
+
 export function mapIDF(
-  rows: any[][],
+  rows: readonly unknown[][],
   config: AppConfig = DEFAULT_CONFIG,
   overrides: Map<string, NotaOverride> = new Map(),
 ): IDFRow[] {
   const out: IDFRow[] = [];
+  if (rows.length === 0) return out;
 
-  for (let i = 1; i < rows.length; i++) {
+  const headerRowIndex = findIDFHeaderRow(rows);
+  const columns = resolveIDFColumns(rows[headerRowIndex] ?? []);
+  const cell = (row: readonly unknown[], key: IDFColumnKey) =>
+    String(row[columns[key]] ?? "").trim();
+
+  for (let i = headerRowIndex + 1; i < rows.length; i++) {
     const r = rows[i] || [];
-    if (!r[0]) continue;
+    const processo = cell(r, "processo");
+    if (!processo) continue;
 
-    // Colunas reais da planilha IDF:
-    // A Processo | B Divisão | C Código item | D Quantidade
-    // E Data Finalização Insp | F Hora Recebimento | G Data Início Insp | H Hora Início Insp
-    // I Data Recebimento | J Hora Finalização Insp | K Status | L Tipo de Problema
-    // M Problema | N Descrição do Problema | O Descrição item | P Fornecedor
-    // Q LOTE | R Criticidade | S Nível | T Código Fornecedor
-    // U Inspetor Início | V Inspetor Final | W Atenção
-
-    const status = String(r[10] ?? "");
-    const criticidade = String(r[17] ?? "");
+    const status = cell(r, "status");
+    const criticidade = cell(r, "criticidade");
     const ncAuto = notaNC(status, criticidade, config.ncWeights);
-    const processo = String(r[0] ?? "");
-    const codigoItem = String(r[2] ?? "");
-    const lote = String(r[16] ?? "").trim();
+    const codigoItem = cell(r, "codigoItem");
+    const lote = cell(r, "lote");
+    const dataCriacaoInsp = cell(r, "dataCriacaoInsp");
+    const dataInicioInsp = cell(r, "dataInicioInsp");
     const ov = overrides.get(overrideKey(processo, codigoItem, lote));
     const ncFinal = ov ? Number(ov.nota_final) : ncAuto;
 
     out.push({
       processo,
-      divisao: String(r[1] ?? ""),
-      codigoItem: String(r[2] ?? ""),
-      quantidade: num(r[3]),
-      dataRecebimento: String(r[8] ?? ""),
-      horaRecebimento: String(r[5] ?? ""),
-      dataInicioInsp: String(r[6] ?? ""),
-      horaInicioInsp: String(r[7] ?? ""),
-      dataFimInsp: String(r[4] ?? ""),
-      horaFimInsp: String(r[9] ?? ""),
+      divisao: cell(r, "divisao"),
+      codigoItem,
+      quantidade: num(cell(r, "quantidade")),
+      dataCriacaoInsp,
+      dataInicioInsp,
+      dataRecebimento: dataInicioInsp,
+      dataFimInsp: dataCriacaoInsp,
+      horaRecebimento: cell(r, "horaRecebimento"),
+      horaInicioInsp: cell(r, "horaInicioInsp"),
+      horaFimInsp: cell(r, "horaFimInsp"),
       status,
-      tipoProblema: String(r[11] ?? ""),
-      problema: String(r[12] ?? ""),
-      descricaoProblema: String(r[13] ?? ""),
-      descricaoItem: String(r[14] ?? ""),
-      fornecedor: String(r[15] ?? "").trim().toUpperCase() || "—",
+      tipoProblema: cell(r, "tipoProblema"),
+      problema: cell(r, "problema"),
+      descricaoProblema: cell(r, "descricaoProblema"),
+      descricaoItem: cell(r, "descricaoItem"),
+      fornecedor: cell(r, "fornecedor").toUpperCase() || "—",
       criticidade,
-      nivel: String(r[18] ?? ""),
-      codigoFornecedor: String(r[19] ?? ""),
-      inspetorInicio: String(r[20] ?? ""),
-      inspetorFinal: String(r[21] ?? ""),
-      atencao: String(r[22] ?? ""),
+      nivel: cell(r, "nivel"),
+      codigoFornecedor: cell(r, "codigoFornecedor"),
+      inspetorInicio: cell(r, "inspetorInicio"),
+      inspetorFinal: cell(r, "inspetorFinal"),
+      atencao: cell(r, "atencao"),
       lote,
       notaNC: ncFinal,
       notaNCBase: ncFinal,
@@ -175,7 +316,7 @@ export function mapIDF(
       desfecho: "Não analisado",
       desfechoData: undefined,
       desfechoProcesso: undefined,
-      dataReferencia: parseBrDate(String(r[8] ?? "")),
+      dataReferencia: parseBrDate(dataInicioInsp),
     });
   }
 
@@ -211,7 +352,7 @@ function applyIR(rows: IDFRow[], cfg: AppConfig): IDFRow[] {
     if (!matchesStatus(r.status)) continue;
     if (!r.dataReferencia) continue;
 
-    const key = `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.problema || r.tipoProblema)}`;
+    const key = `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.tipoProblema || r.problema)}`;
     const hist = history.get(key) || [];
     const lote = norm(r.lote);
 
@@ -261,7 +402,7 @@ function applyDesfechoReprovacao(rows: IDFRow[]): IDFRow[] {
     `${norm(r.fornecedor)}|${norm(r.codigoItem)}`;
 
   const keyProblema = (r: IDFRow) =>
-    `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.problema || r.tipoProblema)}`;
+    `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.tipoProblema || r.problema)}`;
 
   const processoNum = (r: IDFRow) =>
     Number(String(r.processo || "").replace(/\D/g, "")) || 0;
@@ -310,14 +451,14 @@ function applyDesfechoReprovacao(rows: IDFRow[]): IDFRow[] {
 
     if (reprovouDepois) {
       row.desfecho = "Reprovou novamente";
-      row.desfechoData = reprovouDepois.dataRecebimento;
+      row.desfechoData = reprovouDepois.dataInicioInsp;
       row.desfechoProcesso = reprovouDepois.processo;
     } else if (aprovadoDepois) {
       row.desfecho = "Aprovado depois";
-      row.desfechoData = aprovadoDepois.dataRecebimento;
+      row.desfechoData = aprovadoDepois.dataInicioInsp;
       row.desfechoProcesso = aprovadoDepois.processo;
     } else {
-      row.desfecho = "Sem retorno";
+      row.desfecho = "Sem nova entrada";
       row.desfechoData = undefined;
       row.desfechoProcesso = undefined;
     }

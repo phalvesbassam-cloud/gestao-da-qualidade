@@ -116,11 +116,11 @@ export function KpiCard({
   delta?: ReactNode;
 }) {
   const accent: Record<string, string> = {
-    default: "text-slate-100",
-    success: "text-emerald-400",
-    warning: "text-amber-400",
-    destructive: "text-red-400",
-    info: "text-sky-400",
+    default: "text-foreground",
+    success: "text-emerald-600 dark:text-emerald-400",
+    warning: "text-amber-600 dark:text-amber-400",
+    destructive: "text-red-600 dark:text-red-400",
+    info: "text-sky-600 dark:text-sky-400",
   };
   const dot: Record<string, string> = {
     default: "bg-slate-400",
@@ -130,15 +130,15 @@ export function KpiCard({
     info: "bg-sky-400",
   };
   return (
-    <div className="card-premium group relative rounded-xl border border-white/10 bg-[#0f172a] dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_rgba(56,189,248,0.35)] hover:border-white/20 flex flex-col min-h-[152px]">
-      <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="card-premium group relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_rgba(56,189,248,0.28)] hover:border-primary/30 flex flex-col min-h-[152px]">
+      <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="flex items-start justify-between gap-2 min-h-[28px]">
-        <div className="text-[12px] uppercase tracking-wider text-slate-300/90 font-semibold flex items-center gap-2 leading-tight min-w-0">
+        <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2 leading-tight min-w-0">
           <span className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", dot[tone])} />
           <span className="truncate">{label}</span>
         </div>
         {icon && (
-          <div className={cn("opacity-90 h-7 w-7 rounded-lg flex items-center justify-center bg-white/5 shrink-0", accent[tone])}>
+          <div className={cn("opacity-90 h-7 w-7 rounded-lg flex items-center justify-center bg-muted/70 dark:bg-white/5 shrink-0", accent[tone])}>
             {icon}
           </div>
         )}
@@ -149,7 +149,7 @@ export function KpiCard({
       >
         {value}
       </div>
-      {hint && <div className="mt-1.5 text-[12px] text-slate-400 line-clamp-2">{hint}</div>}
+      {hint && <div className="mt-1.5 text-[12px] text-muted-foreground line-clamp-2">{hint}</div>}
       {delta && <div className="mt-auto pt-2">{delta}</div>}
     </div>
   );
@@ -160,9 +160,9 @@ export function PpmCard({ idf, previous }: { idf: IDFRow[]; previous?: IDFRow[] 
   const { ppm, ncQt, totalQt } = calcPPM(idf);
   const prev = previous ? calcPPM(previous) : null;
   return (
-    <div className="card-premium relative rounded-xl border border-white/10 bg-[#0f172a] dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm flex flex-col min-h-[152px]">
+    <div className="card-premium relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm flex flex-col min-h-[152px]">
       <div className="flex items-start justify-between">
-        <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium flex items-center gap-2">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
           <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-chart-ppm)" }} />
           PPM
         </div>
@@ -171,7 +171,7 @@ export function PpmCard({ idf, previous }: { idf: IDFRow[]; previous?: IDFRow[] 
       <div className="mt-2 text-3xl font-display font-bold tabular-nums" style={{ color: "var(--color-chart-ppm)" }}>
         {ppm.toLocaleString("pt-BR")}
       </div>
-      <div className="mt-1 text-xs text-slate-400">
+      <div className="mt-1 text-xs text-muted-foreground">
         {ncQt.toLocaleString("pt-BR")} NC / {totalQt.toLocaleString("pt-BR")} insp.
       </div>
       {prev && (
@@ -184,27 +184,27 @@ export function PpmCard({ idf, previous }: { idf: IDFRow[]; previous?: IDFRow[] 
 }
 
 export function EficienciaInspecaoCard({
-  recebidos,
-  inspecionados,
+  criadas,
+  iniciadas,
   pendentes,
   meta = 95,
   onClick,
   previousPct,
 }: {
-  recebidos: number;
-  inspecionados: number;
+  criadas: number;
+  iniciadas: number;
   pendentes?: number;
   meta?: number;
   onClick?: () => void;
   previousPct?: number | null;
 }) {
-  const pct = recebidos > 0 ? (inspecionados / recebidos) * 100 : 0;
+  const pct = criadas > 0 ? (iniciadas / criadas) * 100 : 0;
   const pctRounded = Math.round(pct * 10) / 10;
-  const pend = pendentes ?? Math.max(0, recebidos - inspecionados);
+  const pend = pendentes ?? Math.max(0, criadas - iniciadas);
   const tone =
-    pct >= 95 ? { text: "text-emerald-400", dot: "bg-emerald-400", ring: "ring-emerald-400/30", glow: "from-emerald-500/15" } :
-    pct >= 85 ? { text: "text-amber-400", dot: "bg-amber-400", ring: "ring-amber-400/30", glow: "from-amber-500/15" } :
-                { text: "text-red-400", dot: "bg-red-400", ring: "ring-red-400/30", glow: "from-red-500/15" };
+    pct >= 95 ? { text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500", ring: "ring-emerald-500/30", glow: "from-emerald-500/12" } :
+    pct >= 85 ? { text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500", ring: "ring-amber-500/30", glow: "from-amber-500/12" } :
+                { text: "text-red-600 dark:text-red-400", dot: "bg-red-500", ring: "ring-red-500/30", glow: "from-red-500/12" };
   const gap = pctRounded - meta;
   const trend = previousPct == null
     ? null
@@ -214,7 +214,7 @@ export function EficienciaInspecaoCard({
     ? { Icon: ArrowDown, color: "text-red-400" }
     : { Icon: ArrowRight, color: "text-slate-400" };
 
-  const tooltip = `Eficiência = (Inspeções Finalizadas ÷ SKUs Recebidos) × 100\n${inspecionados.toLocaleString("pt-BR")} ÷ ${recebidos.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(1)}%\nPendentes: ${pend.toLocaleString("pt-BR")}`;
+  const tooltip = `Eficiência = (Inspecionadas ÷ Recebidas) × 100\n${iniciadas.toLocaleString("pt-BR")} ÷ ${criadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(1)}%\nPendentes: ${pend.toLocaleString("pt-BR")}`;
 
   return (
     <button
@@ -222,14 +222,14 @@ export function EficienciaInspecaoCard({
       onClick={onClick}
       title={tooltip}
       className={cn(
-        "card-premium group relative text-left rounded-xl border border-white/10 bg-[#0f172a] dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm ring-1 transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer w-full flex flex-col min-h-[152px]",
+        "card-premium group relative text-left rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm ring-1 transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer w-full flex flex-col min-h-[152px]",
         tone.ring,
       )}
     >
 
       <div className={cn("absolute inset-0 bg-gradient-to-br to-transparent opacity-60 pointer-events-none", tone.glow)} />
       <div className="relative flex items-start justify-between">
-        <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium flex items-center gap-2">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
           <span className={cn("inline-block h-1.5 w-1.5 rounded-full animate-pulse", tone.dot)} />
           Eficiência de Inspeção
         </div>
@@ -244,28 +244,28 @@ export function EficienciaInspecaoCard({
         </span>
         {trend && <trend.Icon className={cn("h-4 w-4", trend.color)} />}
       </div>
-      <div className="relative mt-2 h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
+      <div className="relative mt-2 h-1.5 w-full rounded-full bg-muted dark:bg-white/5 overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-700 ease-out", tone.dot)}
           style={{ width: `${Math.min(100, Math.max(0, pctRounded))}%` }}
         />
       </div>
-      <div className="relative mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-400">
+      <div className="relative mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
         <div>
-          <div className="text-slate-500">Recebidos</div>
-          <div className="text-slate-200 font-semibold tabular-nums">{recebidos.toLocaleString("pt-BR")}</div>
+          <div>Recebidas</div>
+          <div className="text-foreground font-semibold tabular-nums">{criadas.toLocaleString("pt-BR")}</div>
         </div>
         <div>
-          <div className="text-slate-500">Inspec.</div>
-          <div className="text-slate-200 font-semibold tabular-nums">{inspecionados.toLocaleString("pt-BR")}</div>
+          <div>Inspec.</div>
+          <div className="text-foreground font-semibold tabular-nums">{iniciadas.toLocaleString("pt-BR")}</div>
         </div>
         <div>
-          <div className="text-slate-500">Pendentes</div>
-          <div className={cn("font-semibold tabular-nums", pend > 0 ? "text-amber-400" : "text-slate-200")}>{pend.toLocaleString("pt-BR")}</div>
+          <div>Pendentes</div>
+          <div className={cn("font-semibold tabular-nums", pend > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>{pend.toLocaleString("pt-BR")}</div>
         </div>
       </div>
       <div className="relative mt-2 text-[11px] flex items-center gap-1">
-        <span className="text-slate-500">Meta {meta}%:</span>
+        <span className="text-muted-foreground">Meta {meta}%:</span>
         <span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-emerald-400" : "text-red-400")}>
           {gap >= 0 ? "+" : ""}{gap.toFixed(1)} p.p.
         </span>
