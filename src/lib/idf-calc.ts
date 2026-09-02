@@ -8,18 +8,33 @@ export function parseBrDate(s: string | undefined | null): Date | null {
   if (m) {
     const [, d, mo, y] = m;
     const year = y.length === 2 ? 2000 + parseInt(y) : parseInt(y);
-    const dt = new Date(year, parseInt(mo) - 1, parseInt(d));
-    return isNaN(dt.getTime()) ? null : dt;
+    const month = parseInt(mo);
+    const day = parseInt(d);
+    const dt = new Date(year, month - 1, day);
+    return !Number.isNaN(dt.getTime()) &&
+      dt.getFullYear() === year &&
+      dt.getMonth() === month - 1 &&
+      dt.getDate() === day
+      ? dt
+      : null;
   }
   const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) {
-    const dt = new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
-    return isNaN(dt.getTime()) ? null : dt;
+    const year = parseInt(iso[1]);
+    const month = parseInt(iso[2]);
+    const day = parseInt(iso[3]);
+    const dt = new Date(year, month - 1, day);
+    return !Number.isNaN(dt.getTime()) &&
+      dt.getFullYear() === year &&
+      dt.getMonth() === month - 1 &&
+      dt.getDate() === day
+      ? dt
+      : null;
   }
   return null;
 }
 
-export function num(s: any): number {
+export function num(s: unknown): number {
   if (s === null || s === undefined || s === "") return 0;
   const n = Number(String(s).replace(/\./g, "").replace(",", "."));
   return isNaN(n) ? 0 : n;
@@ -58,12 +73,23 @@ export function irPercent(ir: number, buckets: IrBucket[] = DEFAULT_CONFIG.irBuc
 }
 
 // ---- Nota NC por linha (com pesos configuráveis) ----
-export function notaNC(status: string, criticidade: string, weights: NcWeights = DEFAULT_NC_WEIGHTS): number {
+export function notaNC(
+  status: string,
+  criticidade: string,
+  weights: NcWeights = DEFAULT_NC_WEIGHTS,
+): number {
   const s = (status || "").toLowerCase().trim();
   if (!s.includes("reprov")) return 0;
   const c = (criticidade || "").toLowerCase().trim();
   if (c.includes("grave") || c.includes("crít") || c.includes("crit")) return weights.grave;
-  if (c.includes("moder") || c.includes("média") || c.includes("media") || c.includes("alta") || c.includes("alto")) return weights.moderada;
+  if (
+    c.includes("moder") ||
+    c.includes("média") ||
+    c.includes("media") ||
+    c.includes("alta") ||
+    c.includes("alto")
+  )
+    return weights.moderada;
   if (c.includes("leve") || c.includes("baixa") || c.includes("baixo")) return weights.leve;
   if (c.includes("melhor")) return weights.melhoria;
   return weights.moderada;
@@ -150,6 +176,7 @@ const IDF_COLUMN_SPECS: Record<IDFColumnKey, IDFColumnSpec> = {
   dataCriacaoInsp: {
     headers: [
       "Data de CRIAÇÃO",
+      "Data CRIAÇÃO",
       "Data de CRIAÇÃO Inspeção",
       "Data CRIAÇÃO Inspeção",
       "Data de criação da inspeção",
@@ -188,7 +215,10 @@ const IDF_COLUMN_SPECS: Record<IDFColumnKey, IDFColumnSpec> = {
     headers: ["Descrição do Problema", "Descricao do Problema"],
     fallbackIndex: 13,
   },
-  descricaoItem: { headers: ["Descrição item", "Descricao item", "Descrição do item"], fallbackIndex: 14 },
+  descricaoItem: {
+    headers: ["Descrição item", "Descricao item", "Descrição do item"],
+    fallbackIndex: 14,
+  },
   fornecedor: { headers: ["Fornecedor"], fallbackIndex: 15 },
   lote: { headers: ["LOTE", "Lote"], fallbackIndex: 16 },
   criticidade: { headers: ["Criticidade"], fallbackIndex: 17 },
@@ -398,14 +428,12 @@ function applyDesfechoReprovacao(rows: IDFRow[]): IDFRow[] {
     return v.includes("aprov") && !v.includes("condicional") && !v.includes("reprov");
   };
 
-  const keyItemFornecedor = (r: IDFRow) =>
-    `${norm(r.fornecedor)}|${norm(r.codigoItem)}`;
+  const keyItemFornecedor = (r: IDFRow) => `${norm(r.fornecedor)}|${norm(r.codigoItem)}`;
 
   const keyProblema = (r: IDFRow) =>
     `${norm(r.fornecedor)}|${norm(r.codigoItem)}|${norm(r.tipoProblema || r.problema)}`;
 
-  const processoNum = (r: IDFRow) =>
-    Number(String(r.processo || "").replace(/\D/g, "")) || 0;
+  const processoNum = (r: IDFRow) => Number(String(r.processo || "").replace(/\D/g, "")) || 0;
 
   const isPosterior = (base: IDFRow, candidato: IDFRow) => {
     const baseData = base.dataReferencia?.getTime() ?? 0;
@@ -467,7 +495,7 @@ function applyDesfechoReprovacao(rows: IDFRow[]): IDFRow[] {
   return rows;
 }
 
-export function mapAlerta(rows: any[][]): AlertaRow[] {
+export function mapAlerta(rows: unknown[][]): AlertaRow[] {
   const out: AlertaRow[] = [];
 
   for (let i = 2; i < rows.length; i++) {
@@ -483,7 +511,10 @@ export function mapAlerta(rows: any[][]): AlertaRow[] {
       nf: String(r[5] ?? ""),
       invoice: String(r[6] ?? ""),
       divisao: String(r[7] ?? ""),
-      fornecedor: String(r[8] ?? "").trim().toUpperCase() || "—",
+      fornecedor:
+        String(r[8] ?? "")
+          .trim()
+          .toUpperCase() || "—",
       codigoFornecedor: String(r[9] ?? ""),
       inspetor: String(r[10] ?? ""),
       problema: String(r[11] ?? ""),
@@ -497,7 +528,7 @@ export function mapAlerta(rows: any[][]): AlertaRow[] {
   return out;
 }
 
-export function mapRNC(rows: any[][]): RNCRow[] {
+export function mapRNC(rows: unknown[][]): RNCRow[] {
   const out: RNCRow[] = [];
 
   for (let i = 2; i < rows.length; i++) {

@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { AlertaRow, DashboardData, IDFRow, RNCRow } from "@/lib/types";
 import { parseBrDate } from "@/lib/idf-calc";
 
@@ -12,11 +20,11 @@ export type Filters = {
   inspetor: MultiFilter;
   criticidade: MultiFilter;
   tipoProblema: MultiFilter;
-  classificacao: MultiFilter;     // A/B/C/D
+  classificacao: MultiFilter; // A/B/C/D
   statusRNC: MultiFilter;
-  statusAlerta: MultiFilter;      // "Finalizado" | "Pendente" | "Falta enviar"
-  status: MultiFilter;            // IDF: "Aprovado" | "Aprovação Condicional" | "Reprovado"
-  origem: MultiFilter;            // "IDF" | "ALERTA" | "RNC"
+  statusAlerta: MultiFilter; // "Finalizado" | "Pendente" | "Falta enviar"
+  status: MultiFilter; // IDF: "Aprovado" | "Aprovação Condicional" | "Reprovado"
+  origem: MultiFilter; // "IDF" | "ALERTA" | "RNC"
   item: string;
   processo: string;
   from: string;
@@ -89,7 +97,10 @@ function cleanMulti(value: unknown): MultiFilter {
 }
 
 function normalizeFilters(value: Partial<Filters>): Filters {
-  const recorrencia = value.recorrencia === "reincidentes" || value.recorrencia === "nao-reincidentes" ? value.recorrencia : "todas";
+  const recorrencia =
+    value.recorrencia === "reincidentes" || value.recorrencia === "nao-reincidentes"
+      ? value.recorrencia
+      : "todas";
   return {
     divisao: cleanMulti(value.divisao),
     fornecedor: cleanMulti(value.fornecedor),
@@ -125,7 +136,15 @@ function parseLocalDate(value: string, endOfDay = false): Date | null {
   const safe = safeDateInput(value);
   if (!safe) return null;
   const [year, month, day] = safe.split("-").map(Number);
-  const d = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  const d = new Date(
+    year,
+    month - 1,
+    day,
+    endOfDay ? 23 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 999 : 0,
+  );
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -153,13 +172,27 @@ function filterAll(
   to: Date | null,
   strictDate: boolean,
 ): { idf: IDFRow[]; alerta: AlertaRow[]; rnc: RNCRow[] } {
-  const safeData = data ?? { idf: [], alerta: [], rnc: [], fornecedores: [], divisoes: [], fetchedAt: "" };
+  const safeData = data ?? {
+    idf: [],
+    alerta: [],
+    rnc: [],
+    fornecedores: [],
+    divisoes: [],
+    fetchedAt: "",
+  };
   const f = normalizeFilters(filters);
   const q = f.search.toLowerCase();
   const itemQ = f.item.toLowerCase();
   const procQ = f.processo.toLowerCase();
   const clsMap = new Map((safeData.fornecedores ?? []).map((s) => [s.fornecedor, s.classificacao]));
-  console.debug("[Dashboard] Filtros aplicados", { filtros: f, registros: { idf: safeData.idf.length, alerta: safeData.alerta.length, rnc: safeData.rnc.length } });
+  console.debug("[Dashboard] Filtros aplicados", {
+    filtros: f,
+    registros: {
+      idf: safeData.idf.length,
+      alerta: safeData.alerta.length,
+      rnc: safeData.rnc.length,
+    },
+  });
 
   const idf = safeData.idf.filter((r) => {
     if (!inMulti(r.divisao, f.divisao)) return false;
@@ -167,23 +200,32 @@ function filterAll(
     if (!inMulti(r.inspetorInicio, f.inspetor)) return false;
     if (!inMulti(r.criticidade, f.criticidade)) return false;
     if (!inMulti(r.tipoProblema, f.tipoProblema)) return false;
-    if (f.classificacao.length && !f.classificacao.includes(clsMap.get(r.fornecedor) || "")) return false;
+    if (f.classificacao.length && !f.classificacao.includes(clsMap.get(r.fornecedor) || ""))
+      return false;
     if (f.origem.length && !f.origem.includes("IDF")) return false;
     if (f.status.length) {
       const s = safeText(r.status).toLowerCase();
-      const tag = s.includes("aprovação condicional") || s.includes("aprovacao condicional")
-        ? "Aprovação Condicional"
-        : s.includes("reprov")
-        ? "Reprovado"
-        : s.includes("aprovado")
-        ? "Aprovado"
-        : "";
+      const tag =
+        s.includes("aprovação condicional") || s.includes("aprovacao condicional")
+          ? "Aprovação Condicional"
+          : s.includes("reprov")
+            ? "Reprovado"
+            : s.includes("aprovado")
+              ? "Aprovado"
+              : "";
       if (!f.status.includes(tag)) return false;
     }
     if (!dateOk(r.dataReferencia, from, to, strictDate)) return false;
-    if (itemQ && !`${r.codigoItem ?? ""} ${r.descricaoItem ?? ""}`.toLowerCase().includes(itemQ)) return false;
+    if (itemQ && !`${r.codigoItem ?? ""} ${r.descricaoItem ?? ""}`.toLowerCase().includes(itemQ))
+      return false;
     if (procQ && !safeText(r.processo).toLowerCase().includes(procQ)) return false;
-    if (q && !`${r.processo ?? ""} ${r.codigoItem ?? ""} ${r.descricaoItem ?? ""} ${r.fornecedor ?? ""} ${r.problema ?? ""} ${r.descricaoProblema ?? ""}`.toLowerCase().includes(q)) return false;
+    if (
+      q &&
+      !`${r.processo ?? ""} ${r.codigoItem ?? ""} ${r.descricaoItem ?? ""} ${r.fornecedor ?? ""} ${r.problema ?? ""} ${r.descricaoProblema ?? ""}`
+        .toLowerCase()
+        .includes(q)
+    )
+      return false;
     if (f.recorrencia === "reincidentes" && !(r.recorrencia > 0)) return false;
     if (f.recorrencia === "nao-reincidentes" && r.recorrencia > 0) return false;
     return true;
@@ -202,19 +244,26 @@ function filterAll(
     if (!inMulti(r.divisao, f.divisao)) return false;
     if (!inMulti(r.fornecedor, f.fornecedor)) return false;
     if (!inMulti(r.inspetor, f.inspetor)) return false;
-    if (f.classificacao.length && !f.classificacao.includes(clsMap.get(r.fornecedor) || "")) return false;
+    if (f.classificacao.length && !f.classificacao.includes(clsMap.get(r.fornecedor) || ""))
+      return false;
     if (f.origem.length && !f.origem.includes("ALERTA")) return false;
     if (f.statusAlerta.length) {
       const tag = r.finalizado
         ? "Finalizado"
         : safeText(r.statusEnvio).toUpperCase().includes("FALTA")
-        ? "Falta enviar"
-        : "Pendente";
+          ? "Falta enviar"
+          : "Pendente";
       if (!f.statusAlerta.includes(tag)) return false;
     }
     if (!dateOk(r.dataReferencia, from, to, strictDate)) return false;
     if (itemQ && !safeText(r.item).toLowerCase().includes(itemQ)) return false;
-    if (q && !`${r.numero ?? ""} ${r.item ?? ""} ${r.fornecedor ?? ""} ${r.problema ?? ""} ${r.observacao ?? ""}`.toLowerCase().includes(q)) return false;
+    if (
+      q &&
+      !`${r.numero ?? ""} ${r.item ?? ""} ${r.fornecedor ?? ""} ${r.problema ?? ""} ${r.observacao ?? ""}`
+        .toLowerCase()
+        .includes(q)
+    )
+      return false;
     if (!applyRecForn(r.fornecedor)) return false;
     return true;
   });
@@ -226,12 +275,20 @@ function filterAll(
     for (const r of safeData.idf) {
       if (!r.codigoItem || !r.fornecedor) continue;
       let m = counts.get(r.codigoItem);
-      if (!m) { m = new Map(); counts.set(r.codigoItem, m); }
+      if (!m) {
+        m = new Map();
+        counts.set(r.codigoItem, m);
+      }
       m.set(r.fornecedor, (m.get(r.fornecedor) || 0) + 1);
     }
     for (const [item, m] of counts) {
-      let best = ""; let n = 0;
-      for (const [f, c] of m) if (c > n) { best = f; n = c; }
+      let best = "";
+      let n = 0;
+      for (const [f, c] of m)
+        if (c > n) {
+          best = f;
+          n = c;
+        }
       if (best) item2for.set(item, best);
     }
   }
@@ -240,12 +297,20 @@ function filterAll(
     if (!inMulti(r.divisao, f.divisao)) return false;
     if (f.origem.length && !f.origem.includes("RNC")) return false;
     if (f.statusRNC.length) {
-      const tag = safeText(r.statusRNC).toUpperCase().includes("CONCLU") ? "Concluída" : (r.statusRNC || "Em andamento");
+      const tag = safeText(r.statusRNC).toUpperCase().includes("CONCLU")
+        ? "Concluída"
+        : r.statusRNC || "Em andamento";
       if (!f.statusRNC.some((s) => tag.toLowerCase().includes(s.toLowerCase()))) return false;
     }
     if (!dateOk(r.dataReferencia, from, to, strictDate)) return false;
     if (itemQ && !safeText(r.item).toLowerCase().includes(itemQ)) return false;
-    if (q && !`${r.rnc ?? ""} ${r.item ?? ""} ${r.assunto ?? ""} ${r.cliente ?? ""}`.toLowerCase().includes(q)) return false;
+    if (
+      q &&
+      !`${r.rnc ?? ""} ${r.item ?? ""} ${r.assunto ?? ""} ${r.cliente ?? ""}`
+        .toLowerCase()
+        .includes(q)
+    )
+      return false;
     if (f.recorrencia !== "todas") {
       const forn = item2for.get(r.item) || "";
       if (!applyRecForn(forn)) return false;
@@ -253,7 +318,11 @@ function filterAll(
     return true;
   });
 
-  console.debug("[Dashboard] Resultado dos filtros", { idf: idf.length, alerta: alerta.length, rnc: rnc.length });
+  console.debug("[Dashboard] Resultado dos filtros", {
+    idf: idf.length,
+    alerta: alerta.length,
+    rnc: rnc.length,
+  });
 
   return { idf, alerta, rnc };
 }
@@ -263,6 +332,7 @@ export type InspectionEfficiencySummary = {
   inspecionadas: number;
   pendentes: number;
   percentual: number;
+  baseRows: IDFRow[];
   recebidasRows: IDFRow[];
   inspecionadasRows: IDFRow[];
 };
@@ -285,8 +355,9 @@ function calculateInspectionEfficiency(
   return {
     recebidas,
     inspecionadas,
-    pendentes: Math.max(0, recebidas - inspecionadas),
-    percentual: recebidas > 0 ? (inspecionadas / recebidas) * 100 : 0,
+    pendentes: recebidasRows.filter((row) => !parseBrDate(row.dataInicioInsp)).length,
+    percentual: inspecionadas > 0 ? (recebidas / inspecionadas) * 100 : 0,
+    baseRows,
     recebidasRows,
     inspecionadasRows,
   };
@@ -297,7 +368,13 @@ const DAY = 24 * 60 * 60 * 1000;
 function computeCompareWindows(
   data: DashboardData,
   filters: Filters,
-): { curFrom: Date | null; curTo: Date | null; prevFrom: Date; prevTo: Date; label: string } | null {
+): {
+  curFrom: Date | null;
+  curTo: Date | null;
+  prevFrom: Date;
+  prevTo: Date;
+  label: string;
+} | null {
   // janela atual
   let curFrom = parseLocalDate(filters.from);
   let curTo = parseLocalDate(filters.to, true);
@@ -341,7 +418,10 @@ export function useFilteredData(data: DashboardData) {
     let from = parseLocalDate(safeFilters.from);
     let to = parseLocalDate(safeFilters.to, true);
     if (from && to && from > to) {
-      console.warn("[Dashboard] Intervalo de datas invertido; aplicando correção automática", { from: safeFilters.from, to: safeFilters.to });
+      console.warn("[Dashboard] Intervalo de datas invertido; aplicando correção automática", {
+        from: safeFilters.from,
+        to: safeFilters.to,
+      });
       const tmp = from;
       from = new Date(to);
       from.setHours(0, 0, 0, 0);
@@ -370,7 +450,12 @@ export function useFilteredData(data: DashboardData) {
         return {
           ...cur,
           efficiency: calculateInspectionEfficiency(data, safeFilters, win.curFrom, win.curTo),
-          previousEfficiency: calculateInspectionEfficiency(data, safeFilters, win.prevFrom, win.prevTo),
+          previousEfficiency: calculateInspectionEfficiency(
+            data,
+            safeFilters,
+            win.prevFrom,
+            win.prevTo,
+          ),
           previous,
           compare: true as const,
           compareLabel,
@@ -413,10 +498,13 @@ export function useTheme() {
 export type TvTab = { to: string; label: string; durationMs: number; enabled: boolean };
 
 const DEFAULT_TV_TABS: TvTab[] = [
-  { to: "/", label: "Consolidado", durationMs: 120_000, enabled: true },
-  { to: "/idf", label: "IDF", durationMs: 180_000, enabled: true },
+  { to: "/", label: "Quality Live", durationMs: 120_000, enabled: true },
+  { to: "/idf", label: "Performance Global", durationMs: 150_000, enabled: true },
+  { to: "/inspecao", label: "Inspeção", durationMs: 120_000, enabled: true },
   { to: "/alerta", label: "Alertas", durationMs: 60_000, enabled: true },
-  { to: "/rnc", label: "RNC", durationMs: 120_000, enabled: true },
+  { to: "/rnc", label: "RNC", durationMs: 90_000, enabled: true },
+  { to: "/acoes", label: "Riscos e Ações", durationMs: 90_000, enabled: true },
+  { to: "/timeline", label: "Tendências", durationMs: 90_000, enabled: true },
 ];
 
 export function useTvController(
@@ -434,19 +522,28 @@ export function useTvController(
         const parsed = JSON.parse(s) as TvTab[];
         if (Array.isArray(parsed) && parsed.length === DEFAULT_TV_TABS.length) return parsed;
       }
-    } catch {}
+    } catch {
+      /* localStorage pode estar indisponível em modo privado */
+    }
     return DEFAULT_TV_TABS;
   });
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      try { localStorage.setItem("qf-tv-tabs", JSON.stringify(tabs)); } catch {}
+      try {
+        localStorage.setItem("qf-tv-tabs", JSON.stringify(tabs));
+      } catch {
+        /* mantém configuração apenas em memória */
+      }
     }
   }, [tabs]);
 
   const enabled = useMemo(() => tabs.filter((t) => t.enabled), [tabs]);
-  const currentIndex = Math.max(0, enabled.findIndex((t) => t.to === currentPath));
+  const currentIndex = Math.max(
+    0,
+    enabled.findIndex((t) => t.to === currentPath),
+  );
   const currentTab = enabled[currentIndex] || enabled[0];
 
   useEffect(() => {
@@ -463,7 +560,10 @@ export function useTvController(
 
   // rotação automática
   useEffect(() => {
-    if (!tv || paused || enabled.length === 0) { setProgress(0); return; }
+    if (!tv || paused || enabled.length === 0) {
+      setProgress(0);
+      return;
+    }
     const duration = currentTab?.durationMs ?? 60_000;
     const start = Date.now();
     setProgress(0);
@@ -496,8 +596,10 @@ export function useTvController(
     if (!tv) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setTv(false);
-      else if (e.key === " ") { e.preventDefault(); setPaused((p) => !p); }
-      else if (e.key === "ArrowRight") next();
+      else if (e.key === " ") {
+        e.preventDefault();
+        setPaused((p) => !p);
+      } else if (e.key === "ArrowRight") next();
       else if (e.key === "ArrowLeft") prev();
     };
     window.addEventListener("keydown", onKey);
@@ -529,7 +631,9 @@ export type TvController = ReturnType<typeof useTvController>;
 // Hook legado, mantido para compat caso outros lugares importem
 export function useTvMode(onTick?: () => void) {
   const [tv, setTv] = useState(false);
-  useEffect(() => { document.body.classList.toggle("tv-mode", tv); }, [tv]);
+  useEffect(() => {
+    document.body.classList.toggle("tv-mode", tv);
+  }, [tv]);
   useEffect(() => {
     if (!tv) return;
     const id = setInterval(() => onTick?.(), 60_000);

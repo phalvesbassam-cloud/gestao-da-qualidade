@@ -23,22 +23,35 @@ import {
   Cog,
   CalendarDays,
   Activity,
+  ListTodo,
+  Waypoints,
 } from "lucide-react";
 
-
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale";
-
 
 import { getDashboardData } from "@/lib/sheets.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MultiSelect } from "@/components/multi-select";
-import { FiltersProvider, useFilters, useTheme, useTvController, type Filters } from "@/hooks/use-dashboard";
+import {
+  FiltersProvider,
+  useFilters,
+  useTheme,
+  useTvController,
+  type Filters,
+} from "@/hooks/use-dashboard";
 import { TvControls } from "@/components/tv-controls";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { QualityHeaderIntelligence } from "@/components/quality-assistant";
 import type { DashboardData } from "@/lib/types";
 import { useDashboardFiltered } from "@/hooks/use-data";
 import { cn } from "@/lib/utils";
@@ -50,6 +63,8 @@ const NAV = [
   { to: "/alerta", label: "Alertas", icon: AlertTriangle },
   { to: "/rnc", label: "RNC", icon: FileWarning },
   { to: "/inspecao", label: "Inspeção", icon: Activity },
+  { to: "/acoes", label: "Ações", icon: ListTodo },
+  { to: "/timeline", label: "Timeline", icon: Waypoints },
   { to: "/auditoria", label: "Auditoria", icon: History },
   { to: "/admin", label: "Admin", icon: Settings },
 ] as const;
@@ -101,10 +116,14 @@ function Shell() {
   const activeFilterCount = countActiveFilters(filters);
 
   const navigateTo = useCallback(
-    (to: string) => { router.navigate({ to }); },
+    (to: string) => {
+      router.navigate({ to });
+    },
     [router],
   );
-  const tvOnTick = useCallback(() => { q.refetch(); }, [q]);
+  const tvOnTick = useCallback(() => {
+    q.refetch();
+  }, [q]);
   const tvCtl = useTvController(location.pathname, navigateTo, tvOnTick);
   const { tv, toggle: toggleTv } = tvCtl;
 
@@ -128,13 +147,18 @@ function Shell() {
               <img
                 src={logo}
                 alt="Frasle Mobility"
-                className={cn("object-contain transition-all", sidebarOpen ? "h-10 w-auto" : "h-8 w-8")}
+                className={cn(
+                  "object-contain transition-all",
+                  sidebarOpen ? "h-10 w-auto" : "h-8 w-8",
+                )}
               />
             </div>
           </div>
           {sidebarOpen && (
             <div className="px-5 pt-4 pb-2">
-              <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60">Qualidade</div>
+              <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60">
+                Qualidade
+              </div>
               <div className="text-sm font-display font-semibold text-sidebar-primary-foreground mt-0.5 whitespace-nowrap">
                 Gestão de Fornecedores
               </div>
@@ -179,12 +203,15 @@ function Shell() {
       )}
 
       {/* Conteúdo principal */}
-      <div className={cn("flex flex-col min-w-0 transition-[margin] duration-200", !tv && "md:ml-16")}>
+      <div
+        className={cn("flex flex-col min-w-0 transition-[margin] duration-200", !tv && "md:ml-16")}
+      >
         <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b">
           <div className="flex items-center gap-3 px-4 md:px-6 py-3">
             <PageTitle />
             <div className="flex-1" />
             <div className="tv-hide flex items-center gap-2">
+              <QualityHeaderIntelligence isFetching={q.isFetching} fetchedAt={q.data?.fetchedAt} />
               <Button
                 size="sm"
                 variant={filtersOpen ? "secondary" : "ghost"}
@@ -196,20 +223,36 @@ function Shell() {
                 <Filter className="h-4 w-4" />
                 <span className="hidden md:inline ml-1">Filtros</span>
                 {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px] font-semibold">
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 h-5 min-w-5 px-1.5 text-[10px] font-semibold"
+                  >
                     {activeFilterCount}
                   </Badge>
                 )}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => q.refetch()} disabled={q.isFetching} title="Atualizar">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => q.refetch()}
+                disabled={q.isFetching}
+                title="Atualizar"
+              >
                 <RefreshCw className={cn("h-4 w-4", q.isFetching && "animate-spin")} />
                 <span className="hidden md:inline ml-1">Atualizar</span>
               </Button>
               <Button size="sm" variant="ghost" onClick={toggleTheme} title="Alternar tema">
                 {mounted && dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                <span className="hidden md:inline ml-1">{mounted && dark ? "Claro" : "Escuro"}</span>
+                <span className="hidden md:inline ml-1">
+                  {mounted && dark ? "Claro" : "Escuro"}
+                </span>
               </Button>
-              <Button size="sm" variant={tv ? "default" : "outline"} onClick={toggleTv} title="Modo TV">
+              <Button
+                size="sm"
+                variant={tv ? "default" : "outline"}
+                onClick={toggleTv}
+                title="Modo TV"
+              >
                 <Tv className="h-4 w-4 mr-1" /> TV
               </Button>
             </div>
@@ -223,19 +266,23 @@ function Shell() {
           <FilterBar data={q.data} open={filtersOpen} onClose={() => setFiltersOpen(false)} />
         </header>
 
-        <main className={cn("flex-1 p-4 md:p-6", tv && "tv-fade")} key={tv ? location.pathname : undefined}>
+        <main
+          className={cn("flex-1 p-4 md:p-6", tv && "tv-fade")}
+          key={tv ? location.pathname : undefined}
+        >
           {q.isError && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 text-destructive p-4 mb-4">
               <div className="font-semibold mb-1">Erro ao carregar a planilha</div>
               <div className="text-sm whitespace-pre-wrap">{String(q.error)}</div>
             </div>
           )}
-          <ErrorBoundary resetKey={`${location.pathname}:${q.data?.fetchedAt ?? ""}:${JSON.stringify(filters)}`}>
+          <ErrorBoundary
+            resetKey={`${location.pathname}:${q.data?.fetchedAt ?? ""}:${JSON.stringify(filters)}`}
+          >
             <CompareBanner />
             {q.isLoading && !q.data ? <LoadingState /> : q.data ? <Outlet /> : null}
           </ErrorBoundary>
         </main>
-
       </div>
       <TvControls controller={tvCtl} />
     </div>
@@ -245,12 +292,15 @@ function Shell() {
 function PageTitle() {
   const loc = useLocation();
   const n = NAV.find((x) => x.to === loc.pathname);
+  const isSupplier = loc.pathname.startsWith("/fornecedor/");
   const subtitles: Record<string, string> = {
     "/": "Visão executiva da qualidade de fornecedores",
     "/idf": "Índice de desempenho de fornecedores",
     "/alerta": "Alertas da qualidade",
     "/rnc": "Não conformidades registradas",
     "/inspecao": "Monitoramento operacional e desempenho da equipe",
+    "/acoes": "Pendências, prazos e prioridades da qualidade",
+    "/timeline": "Rastreabilidade de inspeções, alertas e RNC",
     "/auditoria": "Trilha de auditoria",
     "/admin": "Configurações do dashboard",
   };
@@ -259,9 +309,13 @@ function PageTitle() {
   };
   return (
     <div className="flex flex-col leading-tight">
-      <h1 className="text-base md:text-xl font-display font-semibold tracking-tight">{labels[loc.pathname] ?? n?.label ?? "Dashboard"}</h1>
+      <h1 className="text-base md:text-xl font-display font-semibold tracking-tight">
+        {isSupplier ? "Fornecedor 360°" : (labels[loc.pathname] ?? n?.label ?? "QualiHub")}
+      </h1>
       <span className="hidden md:inline text-[11px] text-muted-foreground">
-        {subtitles[loc.pathname] ?? "Gestão da Qualidade de Fornecedores"}
+        {isSupplier
+          ? "Análise completa de desempenho e risco"
+          : (subtitles[loc.pathname] ?? "Gestão da Qualidade de Fornecedores")}
       </span>
     </div>
   );
@@ -320,23 +374,35 @@ function FilterBar({
         {data && (
           <div className="hidden md:flex items-center gap-2 mr-1">
             <div className="kpi-mini text-info">
-              <span className="kpi-icon"><ClipboardCheck className="h-4 w-4" /></span>
+              <span className="kpi-icon">
+                <ClipboardCheck className="h-4 w-4" />
+              </span>
               <div className="flex flex-col">
-                <span className="kpi-value text-foreground">{data.idf.length.toLocaleString("pt-BR")}</span>
+                <span className="kpi-value text-foreground">
+                  {data.idf.length.toLocaleString("pt-BR")}
+                </span>
                 <span className="kpi-label">IDF</span>
               </div>
             </div>
             <div className="kpi-mini text-warning">
-              <span className="kpi-icon"><AlertTriangle className="h-4 w-4" /></span>
+              <span className="kpi-icon">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
               <div className="flex flex-col">
-                <span className="kpi-value text-foreground">{data.alerta.length.toLocaleString("pt-BR")}</span>
+                <span className="kpi-value text-foreground">
+                  {data.alerta.length.toLocaleString("pt-BR")}
+                </span>
                 <span className="kpi-label">AQ</span>
               </div>
             </div>
             <div className="kpi-mini text-destructive">
-              <span className="kpi-icon"><FileWarning className="h-4 w-4" /></span>
+              <span className="kpi-icon">
+                <FileWarning className="h-4 w-4" />
+              </span>
               <div className="flex flex-col">
-                <span className="kpi-value text-foreground">{data.rnc.length.toLocaleString("pt-BR")}</span>
+                <span className="kpi-value text-foreground">
+                  {data.rnc.length.toLocaleString("pt-BR")}
+                </span>
                 <span className="kpi-label">RNC</span>
               </div>
             </div>
@@ -357,150 +423,156 @@ function FilterBar({
       <div className="filter-panel-wrap filter-panel-wrap--open">
         <div className="filter-panel-inner">
           <div className="filter-shell px-4 md:px-6 py-3 space-y-2.5">
-
-          {/* Linha 2 — filtros principais */}
-          <div className="filter-grid-primary">
-            <MultiSelect
-              label="Divisão"
-              icon={<LayoutDashboard className="h-3.5 w-3.5" />}
-              options={data?.divisoes ?? []}
-              value={filters.divisao}
-              onChange={(v) => setFilters({ divisao: v })}
-            />
-            <MultiSelect
-              label="Fornecedor"
-              icon={<Users className="h-3.5 w-3.5" />}
-              options={fornecedores}
-              value={filters.fornecedor}
-              onChange={(v) => setFilters({ fornecedor: v })}
-            />
-            <MultiSelect
-              label="Status RNC"
-              icon={<FileWarning className="h-3.5 w-3.5" />}
-              options={statusRncOpts}
-              value={filters.statusRNC}
-              onChange={(v) => setFilters({ statusRNC: v })}
-            />
-            <MultiSelect
-              label="Status"
-              icon={<ClipboardCheck className="h-3.5 w-3.5" />}
-              options={["Aprovado", "Aprovação Condicional", "Reprovado"]}
-              value={filters.status}
-              onChange={(v) => setFilters({ status: v })}
-            />
-            <MultiSelect
-              label="Status Alerta"
-              icon={<AlertTriangle className="h-3.5 w-3.5" />}
-              options={["Pendente", "Falta enviar", "Finalizado"]}
-              value={filters.statusAlerta}
-              onChange={(v) => setFilters({ statusAlerta: v })}
-            />
-          </div>
-
-          {/* Linha 3 — filtros secundários */}
-          <div className="filter-grid-secondary">
-            <label className="filter-control" data-active={filters.item ? "true" : "false"}>
-              <ScanBarcode className="h-3.5 w-3.5 opacity-70 shrink-0" />
-              <input
-                type="text"
-                placeholder="Item / código"
-                value={filters.item}
-                onChange={(e) => setFilters({ item: e.target.value })}
+            {/* Linha 2 — filtros principais */}
+            <div className="filter-grid-primary">
+              <MultiSelect
+                label="Divisão"
+                icon={<LayoutDashboard className="h-3.5 w-3.5" />}
+                options={data?.divisoes ?? []}
+                value={filters.divisao}
+                onChange={(v) => setFilters({ divisao: v })}
               />
-              {filters.item && (
-                <button type="button" onClick={() => setFilters({ item: "" })} aria-label="Limpar item">
-                  <X className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
-                </button>
-              )}
-            </label>
-
-            <label className="filter-control" data-active={filters.processo ? "true" : "false"}>
-              <Cog className="h-3.5 w-3.5 opacity-70 shrink-0" />
-              <input
-                type="text"
-                placeholder="Processo"
-                value={filters.processo}
-                onChange={(e) => setFilters({ processo: e.target.value })}
+              <MultiSelect
+                label="Fornecedor"
+                icon={<Users className="h-3.5 w-3.5" />}
+                options={fornecedores}
+                value={filters.fornecedor}
+                onChange={(v) => setFilters({ fornecedor: v })}
               />
-              {filters.processo && (
-                <button type="button" onClick={() => setFilters({ processo: "" })} aria-label="Limpar processo">
-                  <X className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
-                </button>
-              )}
-            </label>
-
-            <DateField
-              value={filters.from}
-              onChange={(v) => setFilters({ from: v })}
-              placeholder="Data inicial"
-            />
-            <DateField
-              value={filters.to}
-              onChange={(v) => setFilters({ to: v })}
-              placeholder="Data final"
-            />
-
-            <label className="filter-control" data-active={filters.search ? "true" : "false"}>
-              <Search className="h-3.5 w-3.5 opacity-70 shrink-0" />
-              <input
-                type="text"
-                placeholder="Buscar fornecedor, item ou código..."
-                value={filters.search}
-                onChange={(e) => setFilters({ search: e.target.value })}
+              <MultiSelect
+                label="Status RNC"
+                icon={<FileWarning className="h-3.5 w-3.5" />}
+                options={statusRncOpts}
+                value={filters.statusRNC}
+                onChange={(v) => setFilters({ statusRNC: v })}
               />
-              {filters.search && (
+              <MultiSelect
+                label="Status"
+                icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+                options={["Aprovado", "Aprovação Condicional", "Reprovado"]}
+                value={filters.status}
+                onChange={(v) => setFilters({ status: v })}
+              />
+              <MultiSelect
+                label="Status Alerta"
+                icon={<AlertTriangle className="h-3.5 w-3.5" />}
+                options={["Pendente", "Falta enviar", "Finalizado"]}
+                value={filters.statusAlerta}
+                onChange={(v) => setFilters({ statusAlerta: v })}
+              />
+            </div>
+
+            {/* Linha 3 — filtros secundários */}
+            <div className="filter-grid-secondary">
+              <label className="filter-control" data-active={filters.item ? "true" : "false"}>
+                <ScanBarcode className="h-3.5 w-3.5 opacity-70 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Item / código"
+                  value={filters.item}
+                  onChange={(e) => setFilters({ item: e.target.value })}
+                />
+                {filters.item && (
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ item: "" })}
+                    aria-label="Limpar item"
+                  >
+                    <X className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
+                  </button>
+                )}
+              </label>
+
+              <label className="filter-control" data-active={filters.processo ? "true" : "false"}>
+                <Cog className="h-3.5 w-3.5 opacity-70 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Processo"
+                  value={filters.processo}
+                  onChange={(e) => setFilters({ processo: e.target.value })}
+                />
+                {filters.processo && (
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ processo: "" })}
+                    aria-label="Limpar processo"
+                  >
+                    <X className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
+                  </button>
+                )}
+              </label>
+
+              <DateField
+                value={filters.from}
+                onChange={(v) => setFilters({ from: v })}
+                placeholder="Data inicial"
+              />
+              <DateField
+                value={filters.to}
+                onChange={(v) => setFilters({ to: v })}
+                placeholder="Data final"
+              />
+
+              <label className="filter-control" data-active={filters.search ? "true" : "false"}>
+                <Search className="h-3.5 w-3.5 opacity-70 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Buscar fornecedor, item ou código..."
+                  value={filters.search}
+                  onChange={(e) => setFilters({ search: e.target.value })}
+                />
+                {filters.search && (
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ search: "" })}
+                    aria-label="Limpar busca"
+                  >
+                    <X className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
+                  </button>
+                )}
+              </label>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setFilters({ search: "" })}
-                  aria-label="Limpar busca"
+                  data-active={filters.compare ? "true" : "false"}
+                  onClick={() => setFilters({ compare: !filters.compare })}
+                  className="filter-control justify-center cursor-pointer whitespace-nowrap"
+                  title="Comparar com período anterior equivalente"
                 >
-                  <X className="h-3.5 w-3.5 opacity-60 hover:opacity-100" />
+                  <GitCompareArrows className="h-3.5 w-3.5" />
+                  <span>Comparar</span>
                 </button>
-              )}
-            </label>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                data-active={filters.compare ? "true" : "false"}
-                onClick={() => setFilters({ compare: !filters.compare })}
-                className="filter-control justify-center cursor-pointer whitespace-nowrap"
-                title="Comparar com período anterior equivalente"
-              >
-                <GitCompareArrows className="h-3.5 w-3.5" />
-                <span>Comparar</span>
-              </button>
+              </div>
             </div>
-          </div>
 
-          {/* Recorrência (linha extra discreta) */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Repeat className="h-3.5 w-3.5 text-muted-foreground" />
-            <Select
-              value={filters.recorrencia}
-              onValueChange={(v) => setFilters({ recorrencia: v as any })}
-            >
-              <SelectTrigger
-                className="filter-control h-9 w-auto min-w-[210px] text-xs"
-                data-active={filters.recorrencia !== "todas" ? "true" : "false"}
-                title="Filtrar por reincidência"
+            {/* Recorrência (linha extra discreta) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Repeat className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select
+                value={filters.recorrencia}
+                onValueChange={(v) => setFilters({ recorrencia: v as Filters["recorrencia"] })}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Recorrência: Todas</SelectItem>
-                <SelectItem value="reincidentes">🔥 Só reincidentes</SelectItem>
-                <SelectItem value="nao-reincidentes">Só não reincidentes</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                <SelectTrigger
+                  className="filter-control h-9 w-auto min-w-[210px] text-xs"
+                  data-active={filters.recorrencia !== "todas" ? "true" : "false"}
+                  title="Filtrar por reincidência"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Recorrência: Todas</SelectItem>
+                  <SelectItem value="reincidentes">🔥 Só reincidentes</SelectItem>
+                  <SelectItem value="nao-reincidentes">Só não reincidentes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
 
 function CompareBanner() {
   const { filters } = useFilters();
@@ -514,15 +586,19 @@ function CompareBanner() {
       <span className="font-medium text-foreground">Modo Comparação:</span>
       <span className="text-muted-foreground">{compareLabel}</span>
       <span className="ml-auto text-muted-foreground">
-        {prevN.toLocaleString("pt-BR")} registros (anterior) → <span className="text-foreground font-semibold">{curN.toLocaleString("pt-BR")} (atual)</span>
+        {prevN.toLocaleString("pt-BR")} registros (anterior) →{" "}
+        <span className="text-foreground font-semibold">
+          {curN.toLocaleString("pt-BR")} (atual)
+        </span>
       </span>
       {!filters.from && !filters.to && (
-        <span className="text-[10px] text-muted-foreground italic">(janela automática: últimos 30 dias)</span>
+        <span className="text-[10px] text-muted-foreground italic">
+          (janela automática: últimos 30 dias)
+        </span>
       )}
     </div>
   );
 }
-
 
 function LoadingState() {
   return (

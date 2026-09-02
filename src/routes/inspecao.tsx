@@ -39,7 +39,10 @@ export const Route = createFileRoute("/inspecao")({
   head: () => ({
     meta: [
       { title: "Gestão de Inspeção — Visão Executiva" },
-      { name: "description", content: "Monitoramento operacional e desempenho da equipe de inspeção." },
+      {
+        name: "description",
+        content: "Monitoramento operacional e desempenho da equipe de inspeção.",
+      },
     ],
   }),
   component: InspecaoPage,
@@ -99,7 +102,7 @@ type InspetorAgg = {
   reprovados: number;
   condicionais: number;
   eficienciaPct: number; // média dos percentuais mensais, igual à planilha oficial
-  diffPP: number;        // diferença em pontos percentuais vs META_PCT
+  diffPP: number; // diferença em pontos percentuais vs META_PCT
 };
 
 function statusTag(s: string): "aprovado" | "reprovado" | "condicional" | "outro" {
@@ -213,13 +216,13 @@ function toneFor(pct: number): "success" | "warning" | "destructive" {
 
 // paleta corporativa fixa por inspetor (mesma cor em todos os gráficos/legendas)
 const COLOR_INSPETOR: Record<string, string> = {
-  "Estefany": "#22c55e",                    // verde
-  "Edson Pereira Nunes Lopes": "#38BDF8",   // azul claro
-  "Leonardo Ap. Wohlers": "#A78BFA",        // roxo
-  "Jacklane Freire": "#FACC15",             // amarelo
-  "Douglas Lopes": "#22D3EE",               // ciano
-  "Ademar Ribas": "#FB923C",                // laranja
-  "MASTER": "#475569",                      // sistema de skip
+  Estefany: "#22c55e", // verde
+  "Edson Pereira Nunes Lopes": "#38BDF8", // azul claro
+  "Leonardo Ap. Wohlers": "#A78BFA", // roxo
+  "Jacklane Freire": "#FACC15", // amarelo
+  "Douglas Lopes": "#22D3EE", // ciano
+  "Ademar Ribas": "#FB923C", // laranja
+  MASTER: "#475569", // sistema de skip
 };
 const colorFor = (nome: string) => COLOR_INSPETOR[nome] ?? "#64748b";
 
@@ -227,7 +230,10 @@ function InspecaoPage() {
   const { filtered, efficiency } = useDashboardFiltered();
 
   const allRows = useMemo(
-    () => filtered.idf.filter((r) => r.dataReferencia && resolveInspetor(r.inspetorInicio || "") !== null),
+    () =>
+      filtered.idf.filter(
+        (r) => r.dataReferencia && resolveInspetor(r.inspetorInicio || "") !== null,
+      ),
     [filtered.idf],
   );
 
@@ -256,10 +262,7 @@ function InspecaoPage() {
   const inspetoresAll = useMemo(() => aggregateInspetores(allRows, allRows), [allRows]);
 
   const totalInsp = rows.length;
-  const inspetores = useMemo(
-    () => aggregateInspetores(rows, allRows),
-    [rows, allRows],
-  );
+  const inspetores = useMemo(() => aggregateInspetores(rows, allRows), [rows, allRows]);
 
   const totalReprovados = rows.filter((r) => statusTag(r.status) === "reprovado").length;
   const totalAprovados = rows.filter((r) => statusTag(r.status) === "aprovado").length;
@@ -272,14 +275,21 @@ function InspecaoPage() {
   const totalAvaliados = inspetoresAll.length;
   const acimaMeta = inspetoresAll.filter((i) => i.eficienciaPct >= META_PCT).length;
   const eficienciaEquipe = inspetores.length
-    ? Math.round((inspetores.reduce((s, i) => s + i.eficienciaPct, 0) / inspetores.length) * 10) / 10
+    ? Math.round((inspetores.reduce((s, i) => s + i.eficienciaPct, 0) / inspetores.length) * 10) /
+      10
     : 0;
 
   const melhor = inspetoresAll[0];
   const pior = inspetoresAll.length > 1 ? inspetoresAll[inspetoresAll.length - 1] : undefined;
 
   const barEficiencia = useMemo(
-    () => inspetores.map((i) => ({ nome: i.nome.split(" ")[0], nomeFull: i.nome, eficiencia: i.eficienciaPct, meta: META_PCT })),
+    () =>
+      inspetores.map((i) => ({
+        nome: i.nome.split(" ")[0],
+        nomeFull: i.nome,
+        eficiencia: i.eficienciaPct,
+        meta: META_PCT,
+      })),
     [inspetores],
   );
   const barInspecoes = useMemo(
@@ -287,7 +297,13 @@ function InspecaoPage() {
     [inspetores],
   );
   const aprXRep = useMemo(
-    () => inspetores.map((i) => ({ nome: i.nome.split(" ")[0], nomeFull: i.nome, aprovados: i.aprovados, reprovados: i.reprovados })),
+    () =>
+      inspetores.map((i) => ({
+        nome: i.nome.split(" ")[0],
+        nomeFull: i.nome,
+        aprovados: i.aprovados,
+        reprovados: i.reprovados,
+      })),
     [inspetores],
   );
 
@@ -299,7 +315,9 @@ function InspecaoPage() {
       const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       m.set(k, (m.get(k) ?? 0) + 1);
     }
-    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([mes, total]) => ({ mes, total }));
+    return [...m.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, total]) => ({ mes, total }));
   }, [rows]);
 
   const donut = useMemo(
@@ -310,14 +328,21 @@ function InspecaoPage() {
   const insights = useMemo(() => {
     const out: string[] = [];
     if (melhor && totalGeral) {
-      out.push(`${melhor.nome} está com eficiência acumulada de ${melhor.eficienciaPct.toFixed(1)}% (${melhor.total} inspeções).`);
+      out.push(
+        `${melhor.nome} está com eficiência acumulada de ${melhor.eficienciaPct.toFixed(1)}% (${melhor.total} inspeções).`,
+      );
     }
-    out.push(`${acimaMeta} de ${totalAvaliados} inspetores ${acimaMeta === 1 ? "atingiu" : "atingiram"} a meta de ${META_PCT}%.`);
-    if (pendentes > 0) out.push(`${pendentes} inspeç${pendentes > 1 ? "ões" : "ão"} sem data de início ou status.`);
+    out.push(
+      `${acimaMeta} de ${totalAvaliados} inspetores ${acimaMeta === 1 ? "atingiu" : "atingiram"} a meta de ${META_PCT}%.`,
+    );
+    if (pendentes > 0)
+      out.push(`${pendentes} inspeç${pendentes > 1 ? "ões" : "ão"} sem data de início ou status.`);
     if (taxaApr >= 90) out.push(`Taxa de aprovação saudável: ${taxaApr.toFixed(1)}%.`);
     else if (taxaRep >= 10) out.push(`Atenção: taxa de reprovação em ${taxaRep.toFixed(1)}%.`);
     if (pior && pior.eficienciaPct < META_PCT) {
-      out.push(`${pior.nome} abaixo da meta: ${pior.eficienciaPct.toFixed(1)}% (${pior.diffPP.toFixed(1)} p.p.).`);
+      out.push(
+        `${pior.nome} abaixo da meta: ${pior.eficienciaPct.toFixed(1)}% (${pior.diffPP.toFixed(1)} p.p.).`,
+      );
     }
     return out.slice(0, 6);
   }, [melhor, pior, totalGeral, acimaMeta, totalAvaliados, pendentes, taxaApr, taxaRep]);
@@ -331,22 +356,29 @@ function InspecaoPage() {
 
   if (allRows.length === 0) return <EmptyState label="Sem dados de inspeção no período" />;
 
-
   return (
     <div className="space-y-5">
       {/* Filtros ativos */}
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-3 py-2 card-premium">
-          <span className="text-xs uppercase tracking-wider text-muted-foreground">Filtros ativos:</span>
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+            Filtros ativos:
+          </span>
           {[...selected].map((nome) => (
             <button
               key={nome}
               type="button"
               onClick={() => toggle(nome)}
               className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/50"
-              style={{ borderColor: colorFor(nome), boxShadow: `inset 0 0 0 1px ${colorFor(nome)}33` }}
+              style={{
+                borderColor: colorFor(nome),
+                boxShadow: `inset 0 0 0 1px ${colorFor(nome)}33`,
+              }}
             >
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: colorFor(nome) }} />
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ background: colorFor(nome) }}
+              />
               {nome === "MASTER" ? "MASTER" : nome.split(" ")[0]}
               <X className="h-3 w-3 opacity-70" />
             </button>
@@ -379,9 +411,15 @@ function InspecaoPage() {
         />
         <KpiCard
           label="Eficiência operacional"
-          value={`${eficienciaOperacional.toFixed(1)}%`}
-          hint={`${efficiency.inspecionadas.toLocaleString("pt-BR")} ÷ ${efficiency.recebidas.toLocaleString("pt-BR")} × 100`}
-          tone={eficienciaOperacional >= 95 ? "success" : eficienciaOperacional >= 85 ? "warning" : "destructive"}
+          value={`${eficienciaOperacional.toFixed(2)}%`}
+          hint={`${efficiency.recebidas.toLocaleString("pt-BR")} ÷ ${efficiency.inspecionadas.toLocaleString("pt-BR")} × 100`}
+          tone={
+            eficienciaOperacional >= 95
+              ? "success"
+              : eficienciaOperacional >= 85
+                ? "warning"
+                : "destructive"
+          }
           icon={<TrendingUp className="h-4 w-4" />}
         />
         <KpiCard
@@ -413,18 +451,26 @@ function InspecaoPage() {
           <div className="text-[12px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <Trophy className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Melhor inspetor
           </div>
-          <div className="mt-2 text-2xl font-display font-bold text-emerald-600 dark:text-emerald-400 truncate">{melhor?.nome ?? "—"}</div>
+          <div className="mt-2 text-2xl font-display font-bold text-emerald-600 dark:text-emerald-400 truncate">
+            {melhor?.nome ?? "—"}
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {melhor ? `${melhor.total} inspeções · ${melhor.eficienciaPct.toFixed(1)}% (${melhor.diffPP >= 0 ? "+" : ""}${melhor.diffPP.toFixed(1)} p.p.)` : "—"}
+            {melhor
+              ? `${melhor.total} inspeções · ${melhor.eficienciaPct.toFixed(1)}% (${melhor.diffPP >= 0 ? "+" : ""}${melhor.diffPP.toFixed(1)} p.p.)`
+              : "—"}
           </div>
         </div>
         <div className="card-premium rounded-xl border bg-card p-4">
           <div className="text-[12px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" /> Menor desempenho
           </div>
-          <div className="mt-2 text-2xl font-display font-bold text-red-600 dark:text-red-400 truncate">{pior?.nome ?? "—"}</div>
+          <div className="mt-2 text-2xl font-display font-bold text-red-600 dark:text-red-400 truncate">
+            {pior?.nome ?? "—"}
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {pior ? `${pior.total} inspeções · ${pior.eficienciaPct.toFixed(1)}% (${pior.diffPP >= 0 ? "+" : ""}${pior.diffPP.toFixed(1)} p.p.)` : "—"}
+            {pior
+              ? `${pior.total} inspeções · ${pior.eficienciaPct.toFixed(1)}% (${pior.diffPP >= 0 ? "+" : ""}${pior.diffPP.toFixed(1)} p.p.)`
+              : "—"}
           </div>
         </div>
         <div className="card-premium rounded-xl border bg-card p-4">
@@ -432,7 +478,9 @@ function InspecaoPage() {
             <Target className="h-4 w-4" /> Meta da equipe
           </div>
           <div className="mt-2 flex items-baseline gap-3">
-            <div className="text-3xl font-display font-bold tabular-nums">{eficienciaEquipe.toFixed(1)}%</div>
+            <div className="text-3xl font-display font-bold tabular-nums">
+              {eficienciaEquipe.toFixed(1)}%
+            </div>
             <div className="text-sm text-muted-foreground">média / {META_PCT}%</div>
           </div>
           <div className="mt-2 text-sm font-semibold">{metaStatus.label}</div>
@@ -442,13 +490,20 @@ function InspecaoPage() {
       {/* Insights */}
       {insights.length > 0 && (
         <SectionCard
-          title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-sky-400" /> Insights automáticos</span>}
+          title={
+            <span className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-sky-400" /> Insights automáticos
+            </span>
+          }
           printable
           printTitle="Insights automáticos — Gestão de Inspeção"
         >
           <ul className="grid gap-2 md:grid-cols-2">
             {insights.map((s, i) => (
-              <li key={i} className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-foreground">
+              <li
+                key={i}
+                className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-foreground"
+              >
                 {s}
               </li>
             ))}
@@ -458,7 +513,11 @@ function InspecaoPage() {
 
       {/* Ranking individual */}
       <SectionCard
-        title={<span className="flex items-center gap-2"><Users className="h-4 w-4" /> Ranking de inspetores</span>}
+        title={
+          <span className="flex items-center gap-2">
+            <Users className="h-4 w-4" /> Ranking de inspetores
+          </span>
+        }
         printable
         printTitle="Ranking de inspetores"
       >
@@ -468,9 +527,11 @@ function InspecaoPage() {
             const tone = toneFor(i.eficienciaPct);
             const dot = tone === "success" ? "🟢" : tone === "warning" ? "🟡" : "🔴";
             const efClass =
-              tone === "success" ? "text-emerald-400"
-              : tone === "warning" ? "text-amber-400"
-              : "text-red-400";
+              tone === "success"
+                ? "text-emerald-400"
+                : tone === "warning"
+                  ? "text-amber-400"
+                  : "text-red-400";
             const isSelected = selected.has(i.nome);
             const color = colorFor(i.nome);
             return (
@@ -479,12 +540,24 @@ function InspecaoPage() {
                 type="button"
                 onClick={() => toggle(i.nome)}
                 aria-pressed={isSelected}
-                title={isSelected ? "Clique para remover da seleção" : "Clique para filtrar por este inspetor"}
+                title={
+                  isSelected
+                    ? "Clique para remover da seleção"
+                    : "Clique para filtrar por este inspetor"
+                }
                 className={cn(
                   "card-premium rounded-xl border bg-card p-4 flex flex-col gap-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg cursor-pointer",
-                  isSelected && "ring-2 ring-offset-2 ring-offset-background scale-[1.01] shadow-lg",
+                  isSelected &&
+                    "ring-2 ring-offset-2 ring-offset-background scale-[1.01] shadow-lg",
                 )}
-                style={isSelected ? { borderColor: color, boxShadow: `0 0 0 1px ${color}, 0 10px 30px -12px ${color}55` } : undefined}
+                style={
+                  isSelected
+                    ? {
+                        borderColor: color,
+                        boxShadow: `0 0 0 1px ${color}, 0 10px 30px -12px ${color}55`,
+                      }
+                    : undefined
+                }
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -495,7 +568,9 @@ function InspecaoPage() {
                     {idx < 3 && (
                       <span className="absolute -top-1 -right-1">
                         {idx === 0 && <Trophy className="h-4 w-4 text-amber-400" />}
-                        {idx === 1 && <Medal className="h-4 w-4 text-slate-500 dark:text-slate-300" />}
+                        {idx === 1 && (
+                          <Medal className="h-4 w-4 text-slate-500 dark:text-slate-300" />
+                        )}
                         {idx === 2 && <Award className="h-4 w-4 text-amber-700" />}
                       </span>
                     )}
@@ -503,7 +578,9 @@ function InspecaoPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold truncate text-foreground">{i.nome}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      {isMaster ? `Sistema de skip · #${idx + 1} · ${i.total} inspeções` : `#${idx + 1} · ${i.total} inspeções`}
+                      {isMaster
+                        ? `Sistema de skip · #${idx + 1} · ${i.total} inspeções`
+                        : `#${idx + 1} · ${i.total} inspeções`}
                     </div>
                   </div>
                   {isSelected ? (
@@ -514,33 +591,41 @@ function InspecaoPage() {
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   ) : (
-                    <span className="text-lg" title={`${i.eficienciaPct}% vs meta ${META_PCT}%`}>{dot}</span>
+                    <span className="text-lg" title={`${i.eficienciaPct}% vs meta ${META_PCT}%`}>
+                      {dot}
+                    </span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center mt-1">
                   <div>
                     <div className="text-[10px] text-muted-foreground uppercase">Efic.</div>
-                    <div className={cn("text-sm font-bold tabular-nums", efClass)}>{i.eficienciaPct.toFixed(1)}%</div>
+                    <div className={cn("text-sm font-bold tabular-nums", efClass)}>
+                      {i.eficienciaPct.toFixed(1)}%
+                    </div>
                   </div>
                   <div>
                     <div className="text-[10px] text-muted-foreground uppercase">vs Meta</div>
                     <div className={cn("text-sm font-bold tabular-nums", efClass)}>
-                      {i.diffPP >= 0 ? "+" : ""}{i.diffPP.toFixed(1)} p.p.
+                      {i.diffPP >= 0 ? "+" : ""}
+                      {i.diffPP.toFixed(1)} p.p.
                     </div>
                   </div>
                   <div>
                     <div className="text-[10px] text-muted-foreground uppercase">Reprov.</div>
-                    <div className="text-sm font-bold text-red-500 dark:text-red-400 tabular-nums">{i.reprovados}</div>
+                    <div className="text-sm font-bold text-red-500 dark:text-red-400 tabular-nums">
+                      {i.reprovados}
+                    </div>
                   </div>
                 </div>
-                <div className="text-[10px] text-muted-foreground text-center">Meta: {META_PCT}%</div>
+                <div className="text-[10px] text-muted-foreground text-center">
+                  Meta: {META_PCT}%
+                </div>
               </button>
             );
           })}
         </div>
       </SectionCard>
-
 
       {/* Gráficos */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -554,12 +639,26 @@ function InspecaoPage() {
               <BarChart data={barEficiencia} layout="vertical" margin={{ left: 24 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis type="number" stroke="var(--color-muted-foreground)" fontSize={11} />
-                <YAxis type="category" dataKey="nome" stroke="var(--color-muted-foreground)" fontSize={11} width={80} />
-                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
+                <YAxis
+                  type="category"
+                  dataKey="nome"
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={11}
+                  width={80}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-popover-foreground)",
+                    borderRadius: 8,
+                  }}
+                />
                 <Bar dataKey="eficiencia" radius={[0, 6, 6, 0]}>
                   {barEficiencia.map((d, i) => {
                     const t = toneFor(d.eficiencia);
-                    const fill = t === "success" ? "#34d399" : t === "warning" ? "#fbbf24" : "#fb7185";
+                    const fill =
+                      t === "success" ? "#34d399" : t === "warning" ? "#fbbf24" : "#fb7185";
                     return <Cell key={i} fill={fill} />;
                   })}
                 </Bar>
@@ -575,7 +674,14 @@ function InspecaoPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis dataKey="nome" stroke="var(--color-muted-foreground)" fontSize={11} />
                 <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
-                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-popover-foreground)",
+                    borderRadius: 8,
+                  }}
+                />
                 <Bar dataKey="total" radius={[6, 6, 0, 0]} isAnimationActive={false}>
                   {barInspecoes.map((d, i) => (
                     <Cell key={i} fill={colorFor(d.nomeFull)} />
@@ -586,15 +692,25 @@ function InspecaoPage() {
           </div>
         </SectionCard>
 
-
-        <SectionCard title="Aprovações x Reprovações por inspetor" printable printTitle="Aprovações x Reprovações por inspetor">
+        <SectionCard
+          title="Aprovações x Reprovações por inspetor"
+          printable
+          printTitle="Aprovações x Reprovações por inspetor"
+        >
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={aprXRep}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis dataKey="nome" stroke="var(--color-muted-foreground)" fontSize={11} />
                 <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
-                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-popover-foreground)",
+                    borderRadius: 8,
+                  }}
+                />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="aprovados" fill="#34d399" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="reprovados" fill="#fb7185" radius={[6, 6, 0, 0]} />
@@ -603,15 +719,32 @@ function InspecaoPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Evolução mensal das inspeções" printable printTitle="Evolução mensal das inspeções">
+        <SectionCard
+          title="Evolução mensal das inspeções"
+          printable
+          printTitle="Evolução mensal das inspeções"
+        >
           <div className="h-72">
             <ResponsiveContainer>
               <LineChart data={evolucaoMensal}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis dataKey="mes" stroke="var(--color-muted-foreground)" fontSize={11} />
                 <YAxis stroke="var(--color-muted-foreground)" fontSize={11} />
-                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
-                <Line type="monotone" dataKey="total" stroke="#a78bfa" strokeWidth={2} dot={{ r: 3 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-popover-foreground)",
+                    borderRadius: 8,
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="total"
+                  stroke="#a78bfa"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -626,13 +759,32 @@ function InspecaoPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={donut} dataKey="value" nameKey="nome" innerRadius={55} outerRadius={95} paddingAngle={2} isAnimationActive={false}>
+                <Pie
+                  data={donut}
+                  dataKey="value"
+                  nameKey="nome"
+                  innerRadius={55}
+                  outerRadius={95}
+                  paddingAngle={2}
+                  isAnimationActive={false}
+                >
                   {donut.map((d, i) => (
-                    <Cell key={i} fill={colorFor(d.nomeFull)} stroke="var(--color-card)" strokeWidth={1} />
+                    <Cell
+                      key={i}
+                      fill={colorFor(d.nomeFull)}
+                      stroke="var(--color-card)"
+                      strokeWidth={1}
+                    />
                   ))}
-
                 </Pie>
-                <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", color: "var(--color-popover-foreground)", borderRadius: 8 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-popover-foreground)",
+                    borderRadius: 8,
+                  }}
+                />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>

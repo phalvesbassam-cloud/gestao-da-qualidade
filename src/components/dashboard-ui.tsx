@@ -2,7 +2,16 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { calcPPM } from "@/lib/idf-calc";
 import type { IDFRow } from "@/lib/types";
-import { ArrowDown, ArrowRight, ArrowUp, BarChart3, CalendarDays, Printer, ScanSearch, Target } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  BarChart3,
+  CalendarDays,
+  Printer,
+  ScanSearch,
+  Target,
+} from "lucide-react";
 import { useFilters } from "@/hooks/use-dashboard";
 import frasleLogo from "@/assets/print/frasle-mobility.png";
 import randoncorpLogo from "@/assets/print/randoncorp.png";
@@ -21,7 +30,6 @@ const PRINT_ACCENT_PRESETS = [
 function applyPrintAccent(color: string) {
   document.documentElement.style.setProperty("--print-accent", color);
 }
-
 
 function formatPeriodLabel(from: string, to: string): string {
   const fmt = (s: string) => {
@@ -43,7 +51,9 @@ async function triggerPrint(el: HTMLElement | null) {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   // Move o mouse fora da área (sintético) para forçar saída de hover/tooltip.
   el.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
-  document.body.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 0, clientY: 0 }));
+  document.body.dispatchEvent(
+    new MouseEvent("mousemove", { bubbles: true, clientX: 0, clientY: 0 }),
+  );
 
   const preload = (src: string) =>
     new Promise<void>((resolve) => {
@@ -68,7 +78,6 @@ async function triggerPrint(el: HTMLElement | null) {
   setTimeout(() => window.print(), 350);
 }
 
-
 export function DeltaBadge({
   current,
   previous,
@@ -89,10 +98,19 @@ export function DeltaBadge({
   const down = pct < -0.05;
   const good = invert ? down : up;
   const bad = invert ? up : down;
-  const color = !up && !down ? "text-slate-400" : good ? "text-emerald-400" : bad ? "text-red-400" : "text-slate-400";
+  const color =
+    !up && !down
+      ? "text-slate-400"
+      : good
+        ? "text-emerald-400"
+        : bad
+          ? "text-red-400"
+          : "text-slate-400";
   const Icon = up ? ArrowUp : down ? ArrowDown : ArrowRight;
   return (
-    <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums", color)}>
+    <span
+      className={cn("inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums", color)}
+    >
       <Icon className="h-3 w-3" />
       {Math.abs(pct).toFixed(1)}%
       <span className="text-slate-500 font-normal ml-1">vs {previous.toLocaleString("pt-BR")}</span>
@@ -107,6 +125,8 @@ export function KpiCard({
   tone = "default",
   icon,
   delta,
+  onClick,
+  actionLabel = "Ver análise",
 }: {
   label: string;
   value: ReactNode;
@@ -114,6 +134,8 @@ export function KpiCard({
   tone?: "default" | "success" | "warning" | "destructive" | "info";
   icon?: ReactNode;
   delta?: ReactNode;
+  onClick?: () => void;
+  actionLabel?: string;
 }) {
   const accent: Record<string, string> = {
     default: "text-foreground",
@@ -130,7 +152,26 @@ export function KpiCard({
     info: "bg-sky-400",
   };
   return (
-    <div className="card-premium group relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_rgba(56,189,248,0.28)] hover:border-primary/30 flex flex-col min-h-[152px]">
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "card-premium group relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_rgba(56,189,248,0.28)] hover:border-primary/30 flex flex-col min-h-[152px]",
+        onClick &&
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+      )}
+    >
       <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="flex items-start justify-between gap-2 min-h-[28px]">
         <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2 leading-tight min-w-0">
@@ -138,37 +179,87 @@ export function KpiCard({
           <span className="truncate">{label}</span>
         </div>
         {icon && (
-          <div className={cn("opacity-90 h-7 w-7 rounded-lg flex items-center justify-center bg-muted/70 dark:bg-white/5 shrink-0", accent[tone])}>
+          <div
+            className={cn(
+              "opacity-90 h-7 w-7 rounded-lg flex items-center justify-center bg-muted/70 dark:bg-white/5 shrink-0",
+              accent[tone],
+            )}
+          >
             {icon}
           </div>
         )}
       </div>
       <div
-        className={cn("mt-3 font-display font-bold tabular-nums tracking-tight leading-none truncate", accent[tone])}
+        className={cn(
+          "mt-3 font-display font-bold tabular-nums tracking-tight leading-none truncate",
+          accent[tone],
+        )}
         style={{ fontSize: "clamp(1.875rem, 2.6vw, 2.625rem)" }}
       >
         {value}
       </div>
       {hint && <div className="mt-1.5 text-[12px] text-muted-foreground line-clamp-2">{hint}</div>}
       {delta && <div className="mt-auto pt-2">{delta}</div>}
+      {onClick && (
+        <div
+          className={cn(
+            "text-[10px] font-semibold uppercase tracking-wider text-primary opacity-70 group-hover:opacity-100",
+            delta ? "mt-2" : "mt-auto pt-2",
+          )}
+        >
+          {actionLabel} →
+        </div>
+      )}
     </div>
   );
 }
 
-
-export function PpmCard({ idf, previous }: { idf: IDFRow[]; previous?: IDFRow[] | null }) {
+export function PpmCard({
+  idf,
+  previous,
+  onClick,
+}: {
+  idf: IDFRow[];
+  previous?: IDFRow[] | null;
+  onClick?: () => void;
+}) {
   const { ppm, ncQt, totalQt } = calcPPM(idf);
   const prev = previous ? calcPPM(previous) : null;
   return (
-    <div className="card-premium relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm flex flex-col min-h-[152px]">
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "card-premium relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm flex flex-col min-h-[152px]",
+        onClick &&
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+      )}
+    >
       <div className="flex items-start justify-between">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-chart-ppm)" }} />
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full"
+            style={{ background: "var(--color-chart-ppm)" }}
+          />
           PPM
         </div>
         <Target className="h-4 w-4" style={{ color: "var(--color-chart-ppm)" }} />
       </div>
-      <div className="mt-2 text-3xl font-display font-bold tabular-nums" style={{ color: "var(--color-chart-ppm)" }}>
+      <div
+        className="mt-2 text-3xl font-display font-bold tabular-nums"
+        style={{ color: "var(--color-chart-ppm)" }}
+      >
         {ppm.toLocaleString("pt-BR")}
       </div>
       <div className="mt-1 text-xs text-muted-foreground">
@@ -177,6 +268,11 @@ export function PpmCard({ idf, previous }: { idf: IDFRow[]; previous?: IDFRow[] 
       {prev && (
         <div className="mt-2">
           <DeltaBadge current={ppm} previous={prev.ppm} invert />
+        </div>
+      )}
+      {onClick && (
+        <div className="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+          Ver análise →
         </div>
       )}
     </div>
@@ -198,23 +294,41 @@ export function EficienciaInspecaoCard({
   onClick?: () => void;
   previousPct?: number | null;
 }) {
-  const pct = criadas > 0 ? (iniciadas / criadas) * 100 : 0;
-  const pctRounded = Math.round(pct * 10) / 10;
-  const pend = pendentes ?? Math.max(0, criadas - iniciadas);
+  const pct = iniciadas > 0 ? (criadas / iniciadas) * 100 : 0;
+  const pctRounded = Math.round(pct * 100) / 100;
+  const pend = pendentes ?? 0;
   const tone =
-    pct >= 95 ? { text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500", ring: "ring-emerald-500/30", glow: "from-emerald-500/12" } :
-    pct >= 85 ? { text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500", ring: "ring-amber-500/30", glow: "from-amber-500/12" } :
-                { text: "text-red-600 dark:text-red-400", dot: "bg-red-500", ring: "ring-red-500/30", glow: "from-red-500/12" };
+    pct >= 95
+      ? {
+          text: "text-emerald-600 dark:text-emerald-400",
+          dot: "bg-emerald-500",
+          ring: "ring-emerald-500/30",
+          glow: "from-emerald-500/12",
+        }
+      : pct >= 85
+        ? {
+            text: "text-amber-600 dark:text-amber-400",
+            dot: "bg-amber-500",
+            ring: "ring-amber-500/30",
+            glow: "from-amber-500/12",
+          }
+        : {
+            text: "text-red-600 dark:text-red-400",
+            dot: "bg-red-500",
+            ring: "ring-red-500/30",
+            glow: "from-red-500/12",
+          };
   const gap = pctRounded - meta;
-  const trend = previousPct == null
-    ? null
-    : pctRounded > previousPct + 0.05
-    ? { Icon: ArrowUp, color: "text-emerald-400" }
-    : pctRounded < previousPct - 0.05
-    ? { Icon: ArrowDown, color: "text-red-400" }
-    : { Icon: ArrowRight, color: "text-slate-400" };
+  const trend =
+    previousPct == null
+      ? null
+      : pctRounded > previousPct + 0.05
+        ? { Icon: ArrowUp, color: "text-emerald-400" }
+        : pctRounded < previousPct - 0.05
+          ? { Icon: ArrowDown, color: "text-red-400" }
+          : { Icon: ArrowRight, color: "text-slate-400" };
 
-  const tooltip = `Eficiência = (Inspecionadas ÷ Recebidas) × 100\n${iniciadas.toLocaleString("pt-BR")} ÷ ${criadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(1)}%\nPendentes: ${pend.toLocaleString("pt-BR")}`;
+  const tooltip = `Eficiência = (Recebidos ÷ Inspecionados) × 100\n${criadas.toLocaleString("pt-BR")} ÷ ${iniciadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(2)}%\nRecebidos sem data de início: ${pend.toLocaleString("pt-BR")}`;
 
   return (
     <button
@@ -226,8 +340,12 @@ export function EficienciaInspecaoCard({
         tone.ring,
       )}
     >
-
-      <div className={cn("absolute inset-0 bg-gradient-to-br to-transparent opacity-60 pointer-events-none", tone.glow)} />
+      <div
+        className={cn(
+          "absolute inset-0 bg-gradient-to-br to-transparent opacity-60 pointer-events-none",
+          tone.glow,
+        )}
+      />
       <div className="relative flex items-start justify-between">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
           <span className={cn("inline-block h-1.5 w-1.5 rounded-full animate-pulse", tone.dot)} />
@@ -240,7 +358,7 @@ export function EficienciaInspecaoCard({
           key={pctRounded}
           className={cn("text-3xl font-display font-bold tabular-nums animate-fade-in", tone.text)}
         >
-          {pctRounded.toFixed(1)}%
+          {pctRounded.toFixed(2)}%
         </span>
         {trend && <trend.Icon className={cn("h-4 w-4", trend.color)} />}
       </div>
@@ -253,21 +371,38 @@ export function EficienciaInspecaoCard({
       <div className="relative mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
         <div>
           <div>Recebidas</div>
-          <div className="text-foreground font-semibold tabular-nums">{criadas.toLocaleString("pt-BR")}</div>
+          <div className="text-foreground font-semibold tabular-nums">
+            {criadas.toLocaleString("pt-BR")}
+          </div>
         </div>
         <div>
           <div>Inspec.</div>
-          <div className="text-foreground font-semibold tabular-nums">{iniciadas.toLocaleString("pt-BR")}</div>
+          <div className="text-foreground font-semibold tabular-nums">
+            {iniciadas.toLocaleString("pt-BR")}
+          </div>
         </div>
         <div>
-          <div>Pendentes</div>
-          <div className={cn("font-semibold tabular-nums", pend > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>{pend.toLocaleString("pt-BR")}</div>
+          <div>Sem início</div>
+          <div
+            className={cn(
+              "font-semibold tabular-nums",
+              pend > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+            )}
+          >
+            {pend.toLocaleString("pt-BR")}
+          </div>
         </div>
       </div>
       <div className="relative mt-2 text-[11px] flex items-center gap-1">
         <span className="text-muted-foreground">Meta {meta}%:</span>
-        <span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-emerald-400" : "text-red-400")}>
-          {gap >= 0 ? "+" : ""}{gap.toFixed(1)} p.p.
+        <span
+          className={cn(
+            "font-semibold tabular-nums",
+            gap >= 0 ? "text-emerald-400" : "text-red-400",
+          )}
+        >
+          {gap >= 0 ? "+" : ""}
+          {gap.toFixed(1)} p.p.
         </span>
       </div>
     </button>
@@ -294,7 +429,8 @@ export function SectionCard({
   const [accent, setAccent] = useState<string>(DEFAULT_PRINT_ACCENT);
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem(PRINT_ACCENT_KEY) : null;
+    const stored =
+      typeof window !== "undefined" ? window.localStorage.getItem(PRINT_ACCENT_KEY) : null;
     const initial = stored ?? DEFAULT_PRINT_ACCENT;
     setAccent(initial);
     applyPrintAccent(initial);
@@ -304,7 +440,9 @@ export function SectionCard({
     const onDown = (e: MouseEvent) => {
       if (popRef.current && !popRef.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -315,20 +453,19 @@ export function SectionCard({
   const updateAccent = (c: string) => {
     setAccent(c);
     applyPrintAccent(c);
-    try { window.localStorage.setItem(PRINT_ACCENT_KEY, c); } catch { /* ignore */ }
+    try {
+      window.localStorage.setItem(PRINT_ACCENT_KEY, c);
+    } catch {
+      /* ignore */
+    }
   };
   const handlePrint = () => {
     setOpen(false);
     triggerPrint(ref.current);
   };
 
-  let filters: ReturnType<typeof useFilters>["filters"] | null = null;
-  try {
-    filters = useFilters().filters;
-  } catch {
-    filters = null;
-  }
-  const periodo = filters ? formatPeriodLabel(filters.from, filters.to) : "";
+  const { filters } = useFilters();
+  const periodo = formatPeriodLabel(filters.from, filters.to);
   const headingText = printTitle ?? (typeof title === "string" ? title : "Indicador");
 
   return (
@@ -377,7 +514,10 @@ export function SectionCard({
                           style={{ background: p.value }}
                         />
                       ))}
-                      <label className="relative inline-flex items-center" title="Cor personalizada">
+                      <label
+                        className="relative inline-flex items-center"
+                        title="Cor personalizada"
+                      >
                         <input
                           type="color"
                           value={accent}
@@ -389,7 +529,10 @@ export function SectionCard({
                       </label>
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="inline-block h-3 w-6 rounded-sm border border-border" style={{ background: accent }} />
+                      <span
+                        className="inline-block h-3 w-6 rounded-sm border border-border"
+                        style={{ background: accent }}
+                      />
                       <span className="tabular-nums">{accent.toUpperCase()}</span>
                     </div>
                   </div>
@@ -417,8 +560,6 @@ export function SectionCard({
         </div>
       </header>
 
-
-
       {/* Capa de impressão (FORM-CORP-213) — visível só no @media print */}
       {printable && (
         <>
@@ -427,7 +568,9 @@ export function SectionCard({
             <div className="print-header-left">
               <CalendarDays className="print-header-icon" />
               <span className="print-header-title">DATA DE ATUALIZAÇÃO</span>
-              <span className="print-header-datebox">Data: {new Date().toLocaleDateString("pt-BR")}</span>
+              <span className="print-header-datebox">
+                Data: {new Date().toLocaleDateString("pt-BR")}
+              </span>
             </div>
             <img src={frasleLogo} alt="Frasle Mobility" className="print-header-logo" />
           </div>
@@ -483,10 +626,17 @@ export function ClassBadge({ c }: { c: "A" | "B" | "C" | "D" | string | undefine
     C: "bg-warning/15 text-warning border-warning/30",
     D: "bg-destructive/15 text-destructive border-destructive/30",
   };
-  const raw = String(c ?? "").trim().toUpperCase();
+  const raw = String(c ?? "")
+    .trim()
+    .toUpperCase();
   const safe = raw === "A" || raw === "B" || raw === "C" || raw === "D" ? raw : "—";
   return (
-    <span className={cn("inline-flex items-center justify-center w-7 h-7 rounded-md border text-xs font-bold", map[safe] ?? "bg-muted text-muted-foreground border-border")}>
+    <span
+      className={cn(
+        "inline-flex items-center justify-center w-7 h-7 rounded-md border text-xs font-bold",
+        map[safe] ?? "bg-muted text-muted-foreground border-border",
+      )}
+    >
       {safe}
     </span>
   );

@@ -16,14 +16,48 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, AlertTriangle, Award, CheckCircle2, FileWarning, RotateCcw, ShieldAlert, Siren, TrendingUp, Trophy, Users } from "lucide-react";
-import { useMemo } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  Award,
+  CheckCircle2,
+  FileWarning,
+  RotateCcw,
+  ShieldAlert,
+  Siren,
+  TrendingUp,
+  Trophy,
+  Users,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { useDashboardFiltered } from "@/hooks/use-data";
 import { useFilters } from "@/hooks/use-dashboard";
-import { KpiCard, PpmCard, SectionCard, StatusDot, ClassBadge, DeltaBadge, EmptyState, EficienciaInspecaoCard } from "@/components/dashboard-ui";
+import {
+  KpiCard,
+  PpmCard,
+  SectionCard,
+  StatusDot,
+  ClassBadge,
+  DeltaBadge,
+  EmptyState,
+  EficienciaInspecaoCard,
+} from "@/components/dashboard-ui";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
 import { scoreFornecedores } from "@/lib/idf-calc";
+import {
+  QualityCommandHero,
+  QualityIntelligenceSections,
+} from "@/components/quality-command-center";
+import { QualityDrilldown, type DrilldownKind } from "@/components/quality-drilldown";
+import {
+  buildChanges,
+  buildMonthlyEfficiency,
+  buildQualitySnapshot,
+  buildRecentPeriodComparison,
+  calculateSupplierQualityScores,
+  detectQualityAnomalies,
+} from "@/lib/quality-intelligence";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,39 +76,81 @@ const STATUS_COLORS: Record<string, string> = {
   vermelho: "var(--color-destructive)",
 };
 
-const MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MESES_PT = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
 
 function ConsolidadoPage() {
-  const { data, filtered, previous, compare, efficiency, previousEfficiency } = useDashboardFiltered();
+  const { data, filtered, previous, compare, efficiency, previousEfficiency } =
+    useDashboardFiltered();
   const { reset: resetFilters } = useFilters();
   const navigate = useNavigate();
   const idf = filtered.idf;
   const alertas = filtered.alerta;
   const rncs = filtered.rnc;
+  const [drilldown, setDrilldown] = useState<DrilldownKind | null>(null);
   const lower = (value: unknown) => String(value ?? "").toLowerCase();
 
-  const totalInsp = idf.length;
-  const aprov = idf.filter((r) => lower(r.status).includes("aprovado")).length;
-  const cond = idf.filter((r) =>
-    lower(r.status).includes("aprovação condicional") ||
-    lower(r.status).includes("aprovacao condicional"),
-  ).length;
-  const repr = idf.filter((r) => lower(r.status).includes("reprov")).length;
-  const idfGlobal = totalInsp > 0 ? Math.round((aprov / totalInsp) * 1000) / 10 : 0;
+  const scopedData = useMemo(
+    () => ({
+      idf,
+      alerta: alertas,
+      rnc: rncs,
+      fornecedores: [],
+      divisoes: data?.divisoes ?? [],
+      fetchedAt: data?.fetchedAt ?? "",
+    }),
+    [idf, alertas, rncs, data?.divisoes, data?.fetchedAt],
+  );
+  const snapshot = useMemo(
+    () => buildQualitySnapshot(scopedData, efficiency),
+    [efficiency, scopedData],
+  );
+  const qualityScores = useMemo(() => calculateSupplierQualityScores(scopedData), [scopedData]);
+  const anomalies = useMemo(() => detectQualityAnomalies(idf), [idf]);
+  const recentComparison = useMemo(() => (data ? buildRecentPeriodComparison(data) : null), [data]);
+  const changes = useMemo(() => {
+    if (compare && previous)
+      return buildChanges(
+        snapshot,
+        buildQualitySnapshot(previous, previousEfficiency ?? undefined),
+      );
+    return recentComparison
+      ? buildChanges(recentComparison.current, recentComparison.previous)
+      : [];
+  }, [compare, previous, previousEfficiency, recentComparison, snapshot]);
+
+  const totalInsp = snapshot.inspecoes;
+  const aprov = snapshot.aprovados;
+  const cond = snapshot.condicionais;
+  const repr = snapshot.reprovados;
+  const idfGlobal = snapshot.idfGlobal;
 
   // Eficiência operacional da aba IDF:
   // Recebidas = registros com Data de Criação
   // Inspecionadas = registros com Data de Início
-  const eficienciaPrev = compare ? previousEfficiency?.percentual ?? null : null;
+  const eficienciaPrev = compare ? (previousEfficiency?.percentual ?? null) : null;
 
   // métricas anteriores (modo comparação)
   const prev = useMemo(() => {
     if (!compare || !previous) return null;
     const pIdf = previous.idf;
     const pAprov = pIdf.filter((r) => lower(r.status).includes("aprovado")).length;
-    const pCond = pIdf.filter((r) =>
-      lower(r.status).includes("aprovação condicional") ||
-      lower(r.status).includes("aprovacao condicional"),
+    const pCond = pIdf.filter(
+      (r) =>
+        lower(r.status).includes("aprovação condicional") ||
+        lower(r.status).includes("aprovacao condicional"),
     ).length;
     const pRepr = pIdf.filter((r) => lower(r.status).includes("reprov")).length;
     const pTotal = pIdf.length;
@@ -91,7 +167,6 @@ function ConsolidadoPage() {
       rncs: previous.rnc.length,
     };
   }, [compare, previous]);
-
 
   // Score Frasle (NC por reprovadas × criticidade)
   const scored = useMemo(() => scoreFornecedores(idf, alertas, rncs), [idf, alertas, rncs]);
@@ -128,12 +203,16 @@ function ConsolidadoPage() {
   const statusDistVisible = statusDist.filter((s) => s.value > 0);
 
   const porDivisao = useMemo(() => {
-    const map = new Map<string, { divisao: string; aprovado: number; condicional: number; reprovado: number }>();
+    const map = new Map<
+      string,
+      { divisao: string; aprovado: number; condicional: number; reprovado: number }
+    >();
     for (const r of idf) {
       const d = r.divisao || "—";
       const e = map.get(d) ?? { divisao: d, aprovado: 0, condicional: 0, reprovado: 0 };
       const s = lower(r.status);
-      if (s.includes("aprovação condicional") || s.includes("aprovacao condicional")) e.condicional++;
+      if (s.includes("aprovação condicional") || s.includes("aprovacao condicional"))
+        e.condicional++;
       else if (s.includes("reprov")) e.reprovado++;
       else if (s.includes("aprovado")) e.aprovado++;
       map.set(d, e);
@@ -171,7 +250,10 @@ function ConsolidadoPage() {
   // Índice de Não Conformidade mensal (por SKUs únicos)
   const indiceNC = useMemo(() => {
     // por mês: conjuntos de SKUs distintos por status
-    const map = new Map<number, { reprovado: Set<string>; aprovado: Set<string>; desvio: Set<string> }>();
+    const map = new Map<
+      number,
+      { reprovado: Set<string>; aprovado: Set<string>; desvio: Set<string> }
+    >();
     for (const r of idf) {
       if (!r.dataReferencia) continue;
       if (r.dataReferencia.getFullYear() !== 2026) continue;
@@ -186,7 +268,11 @@ function ConsolidadoPage() {
       map.set(m, e);
     }
     return MESES_PT.map((mes, i) => {
-      const e = map.get(i) ?? { reprovado: new Set<string>(), aprovado: new Set<string>(), desvio: new Set<string>() };
+      const e = map.get(i) ?? {
+        reprovado: new Set<string>(),
+        aprovado: new Set<string>(),
+        desvio: new Set<string>(),
+      };
       const reprovado = e.reprovado.size;
       const aprovado = e.aprovado.size;
       const desvio = e.desvio.size;
@@ -194,7 +280,15 @@ function ConsolidadoPage() {
       const union = new Set<string>([...e.reprovado, ...e.aprovado, ...e.desvio]);
       const subtotal = union.size;
       const pct = subtotal > 0 ? (reprovado / subtotal) * 100 : 0;
-      return { mes, mesCurto: mes.slice(0, 3), reprovado, aprovado, desvio, subtotal, pct: Math.round(pct * 100) / 100 };
+      return {
+        mes,
+        mesCurto: mes.slice(0, 3),
+        reprovado,
+        aprovado,
+        desvio,
+        subtotal,
+        pct: Math.round(pct * 100) / 100,
+      };
     });
   }, [idf]);
   const metaNC = 2.0;
@@ -223,47 +317,29 @@ function ConsolidadoPage() {
     });
   }, [idf]);
   const paretoTotal = pareto.reduce((s, x) => s + x.qtd, 0);
-  const baseTemNC = Boolean(data?.idf.some((r) => {
-    const status = lower(r.status);
-    return status.includes("reprov") || status.includes("condicional");
-  }));
+  const baseTemNC = Boolean(
+    data?.idf.some((r) => {
+      const status = lower(r.status);
+      return status.includes("reprov") || status.includes("condicional");
+    }),
+  );
   const ncOcultasPelosFiltros = paretoTotal === 0 && baseTemNC;
 
   // Eficiência mensal: recebida pela Data de Criação e inspecionada pela Data de Início.
   const eficienciaMensal = useMemo(() => {
-    const buckets = new Map<number, { criadas: number; iniciadas: number }>();
-    const bump = (m: number, key: "criadas" | "iniciadas") => {
-      const b = buckets.get(m) ?? { criadas: 0, iniciadas: 0 };
-      b[key]++;
-      buckets.set(m, b);
-    };
-    const YEAR = 2026;
-    const monthOf = (s: string): number | null => {
-      const m = /^\s*\d{1,2}\/(\d{1,2})\/(\d{2,4})/.exec(s ?? "");
-      if (!m) return null;
-      const mm = parseInt(m[1], 10);
-      let yy = parseInt(m[2], 10);
-      if (yy < 100) yy += 2000;
-      if (yy !== YEAR) return null;
-      return mm >= 1 && mm <= 12 ? mm - 1 : null;
-    };
-    for (const r of efficiency.recebidasRows) {
-      const mc = monthOf(r.dataCriacaoInsp);
-      if (mc !== null) bump(mc, "criadas");
-    }
-    for (const r of efficiency.inspecionadasRows) {
-      const mi = monthOf(r.dataInicioInsp);
-      if (mi !== null) bump(mi, "iniciadas");
-    }
-    const rows = MESES_PT.map((mes, i) => {
-      const b = buckets.get(i) ?? { criadas: 0, iniciadas: 0 };
-      const efic = b.criadas > 0 ? Math.round((b.iniciadas / b.criadas) * 100) : 0;
-      return { mes, mesCurto: mes.slice(0, 3), criadas: b.criadas, iniciadas: b.iniciadas, efic };
-    });
+    const source = buildMonthlyEfficiency(efficiency.baseRows);
+    const rows = source.map((row) => ({
+      mes: row.mes,
+      mesCurto: row.mesCurto,
+      criadas: row.recebidas,
+      iniciadas: row.inspecionadas,
+      efic: row.eficiencia,
+      year: row.year,
+    }));
     const totCriadas = rows.reduce((s, r) => s + r.criadas, 0);
     const totIniciadas = rows.reduce((s, r) => s + r.iniciadas, 0);
-    const totEfic = totCriadas > 0 ? Math.round((totIniciadas / totCriadas) * 100) : 0;
-    return { rows, totCriadas, totIniciadas, totEfic };
+    const totEfic = totIniciadas > 0 ? Math.round((totCriadas / totIniciadas) * 10000) / 100 : null;
+    return { rows, totCriadas, totIniciadas, totEfic, year: source[0]?.year };
   }, [efficiency]);
 
   const top5 = ranking.slice(0, 5);
@@ -271,18 +347,52 @@ function ConsolidadoPage() {
 
   return (
     <div className="space-y-6">
+      <QualityCommandHero snapshot={snapshot} fetchedAt={data?.fetchedAt} />
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard label="IDF Global" value={`${idfGlobal}%`} hint="Aprovados / Total" tone="success" icon={<TrendingUp className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={idfGlobal} previous={prev.idfPct} /> : undefined} />
-        <PpmCard idf={idf} previous={previous?.idf} />
-        <KpiCard label="Inspeções" value={totalInsp} hint="no período" icon={<Activity className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={totalInsp} previous={prev.total} /> : undefined} />
-        <KpiCard label="Aprovados" value={aprov} tone="success" icon={<CheckCircle2 className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={aprov} previous={prev.aprov} /> : undefined} />
-        <KpiCard label="Condicionais" value={cond} tone="warning" icon={<ShieldAlert className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={cond} previous={prev.cond} invert /> : undefined} />
-        <KpiCard label="Reprovados" value={repr} tone="destructive" icon={<AlertTriangle className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={repr} previous={prev.repr} invert /> : undefined} />
+        <KpiCard
+          label="IDF Global"
+          value={`${idfGlobal}%`}
+          hint="Aprovados / Total"
+          tone="success"
+          icon={<TrendingUp className="h-4 w-4" />}
+          delta={prev ? <DeltaBadge current={idfGlobal} previous={prev.idfPct} /> : undefined}
+          onClick={() => setDrilldown("idf")}
+          actionLabel="Por quê?"
+        />
+        <PpmCard idf={idf} previous={previous?.idf} onClick={() => setDrilldown("ppm")} />
+        <KpiCard
+          label="Inspeções"
+          value={totalInsp}
+          hint="no período"
+          icon={<Activity className="h-4 w-4" />}
+          delta={prev ? <DeltaBadge current={totalInsp} previous={prev.total} /> : undefined}
+          onClick={() => setDrilldown("inspecoes")}
+        />
+        <KpiCard
+          label="Aprovados"
+          value={aprov}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          delta={prev ? <DeltaBadge current={aprov} previous={prev.aprov} /> : undefined}
+          onClick={() => setDrilldown("aprovados")}
+        />
+        <KpiCard
+          label="Condicionais"
+          value={cond}
+          tone="warning"
+          icon={<ShieldAlert className="h-4 w-4" />}
+          delta={prev ? <DeltaBadge current={cond} previous={prev.cond} invert /> : undefined}
+          onClick={() => setDrilldown("condicionais")}
+        />
+        <KpiCard
+          label="Reprovados"
+          value={repr}
+          tone="destructive"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          delta={prev ? <DeltaBadge current={repr} previous={prev.repr} invert /> : undefined}
+          onClick={() => setDrilldown("reprovados")}
+        />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -291,64 +401,213 @@ function ConsolidadoPage() {
           iniciadas={efficiency.inspecionadas}
           pendentes={efficiency.pendentes}
           previousPct={eficienciaPrev}
-          onClick={() => navigate({ to: "/idf" })}
+          onClick={() => setDrilldown("eficiencia")}
         />
-        <KpiCard label="Fornecedores" value={ranking.length} hint="Fornecedores ativos" icon={<Users className="h-4 w-4" />} />
-        <KpiCard label="Alertas (AQ)" value={alertas.length} hint="Ocorrências detectadas" tone="warning" icon={<AlertTriangle className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={alertas.length} previous={prev.alertas} invert /> : undefined} />
-        <KpiCard label="AQ Pendentes" value={alertas.filter((a) => !a.finalizado).length} hint="Aguardando tratativa" tone="destructive" icon={<Siren className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={alertas.filter((a) => !a.finalizado).length} previous={prev.aqPend} invert /> : undefined} />
-        <KpiCard label="RNCs" value={rncs.length} hint="Em acompanhamento" tone="info" icon={<FileWarning className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={rncs.length} previous={prev.rncs} invert /> : undefined} />
-
+        <KpiCard
+          label="Fornecedores"
+          value={ranking.length}
+          hint="Fornecedores ativos"
+          icon={<Users className="h-4 w-4" />}
+        />
+        <KpiCard
+          label="Alertas (AQ)"
+          value={alertas.length}
+          hint="Ocorrências detectadas"
+          tone="warning"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          delta={
+            prev ? (
+              <DeltaBadge current={alertas.length} previous={prev.alertas} invert />
+            ) : undefined
+          }
+          onClick={() => setDrilldown("alertas")}
+        />
+        <KpiCard
+          label="AQ Pendentes"
+          value={alertas.filter((a) => !a.finalizado).length}
+          hint="Aguardando tratativa"
+          tone="destructive"
+          icon={<Siren className="h-4 w-4" />}
+          delta={
+            prev ? (
+              <DeltaBadge
+                current={alertas.filter((a) => !a.finalizado).length}
+                previous={prev.aqPend}
+                invert
+              />
+            ) : undefined
+          }
+        />
+        <KpiCard
+          label="RNCs"
+          value={rncs.length}
+          hint="Em acompanhamento"
+          tone="info"
+          icon={<FileWarning className="h-4 w-4" />}
+          delta={
+            prev ? <DeltaBadge current={rncs.length} previous={prev.rncs} invert /> : undefined
+          }
+          onClick={() => setDrilldown("rnc")}
+        />
       </div>
 
+      <QualityIntelligenceSections
+        idf={idf}
+        snapshot={snapshot}
+        scores={qualityScores}
+        anomalies={anomalies}
+        changes={changes}
+        onSupplier={(supplier) =>
+          navigate({
+            to: "/fornecedor/$fornecedor",
+            params: { fornecedor: encodeURIComponent(supplier) },
+          })
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <SectionCard title="Distribuição de Status (IDF)" className="lg:col-span-1" printable printTitle="Distribuição de Status (IDF)">
-          {statusDistVisible.length === 0 ? <EmptyState /> : <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={statusDistVisible} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                {statusDistVisible.map((e, i) => (
-                  <Cell key={i} fill={e.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>}
+        <SectionCard
+          title="Distribuição de Status (IDF)"
+          className="lg:col-span-1"
+          printable
+          printTitle="Distribuição de Status (IDF)"
+        >
+          {statusDistVisible.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie
+                  data={statusDistVisible}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={55}
+                  outerRadius={90}
+                  paddingAngle={2}
+                >
+                  {statusDistVisible.map((e, i) => (
+                    <Cell key={i} fill={e.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </SectionCard>
 
-        <SectionCard title="Inspeções por Divisão" className="lg:col-span-2" printable printTitle="Inspeções por Divisão">
-          {porDivisao.length === 0 ? <EmptyState /> : <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={porDivisao}>
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-              <XAxis dataKey="divisao" stroke="var(--color-muted-foreground)" fontSize={12} />
-              <YAxis stroke="var(--color-muted-foreground)" fontSize={12} />
-              <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="aprovado" stackId="a" name="Aprovado" fill="var(--color-chart-approved)" />
-              <Bar dataKey="condicional" stackId="a" name="Condicional" fill="var(--color-chart-conditional)" />
-              <Bar dataKey="reprovado" stackId="a" name="Reprovado" fill="var(--color-chart-rejected)" />
-            </BarChart>
-          </ResponsiveContainer>}
+        <SectionCard
+          title="Inspeções por Divisão"
+          className="lg:col-span-2"
+          printable
+          printTitle="Inspeções por Divisão"
+        >
+          {porDivisao.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={porDivisao}>
+                <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+                <XAxis dataKey="divisao" stroke="var(--color-muted-foreground)" fontSize={12} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={12} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  dataKey="aprovado"
+                  stackId="a"
+                  name="Aprovado"
+                  fill="var(--color-chart-approved)"
+                />
+                <Bar
+                  dataKey="condicional"
+                  stackId="a"
+                  name="Condicional"
+                  fill="var(--color-chart-conditional)"
+                />
+                <Bar
+                  dataKey="reprovado"
+                  stackId="a"
+                  name="Reprovado"
+                  fill="var(--color-chart-rejected)"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </SectionCard>
       </div>
 
-      <SectionCard title="Evolução mensal (Inspeções · Alertas · RNC)" printable printTitle="Evolução mensal — Inspeções · Alertas · RNC">
-        {evolucao.length === 0 ? <EmptyState /> : <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={evolucao}>
-            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-            <XAxis dataKey="mes" stroke="var(--color-muted-foreground)" fontSize={12} />
-            <YAxis yAxisId="left" stroke="var(--color-muted-foreground)" fontSize={12} />
-            <YAxis yAxisId="right" orientation="right" stroke="var(--color-muted-foreground)" fontSize={12} />
-            <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line yAxisId="left" type="monotone" dataKey="idf" name="Inspeções" stroke="var(--color-chart-insp)" strokeWidth={2.5} dot={false} />
-            <Line yAxisId="right" type="monotone" dataKey="alertas" name="Alertas" stroke="var(--color-chart-alert)" strokeWidth={2.5} dot={false} />
-            <Line yAxisId="right" type="monotone" dataKey="rnc" name="RNC" stroke="var(--color-chart-rejected)" strokeWidth={2.5} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>}
+      <SectionCard
+        title="Evolução mensal (Inspeções · Alertas · RNC)"
+        printable
+        printTitle="Evolução mensal — Inspeções · Alertas · RNC"
+      >
+        {evolucao.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={evolucao}>
+              <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+              <XAxis dataKey="mes" stroke="var(--color-muted-foreground)" fontSize={12} />
+              <YAxis yAxisId="left" stroke="var(--color-muted-foreground)" fontSize={12} />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke="var(--color-muted-foreground)"
+                fontSize={12}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--color-popover)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="idf"
+                name="Inspeções"
+                stroke="var(--color-chart-insp)"
+                strokeWidth={2.5}
+                dot={false}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="alertas"
+                name="Alertas"
+                stroke="var(--color-chart-alert)"
+                strokeWidth={2.5}
+                dot={false}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="rnc"
+                name="RNC"
+                stroke="var(--color-chart-rejected)"
+                strokeWidth={2.5}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </SectionCard>
 
       <SectionCard
@@ -357,26 +616,79 @@ function ConsolidadoPage() {
         printTitle="Eficiência de Inspeção — Mensal (Recebidas x Inspecionadas)"
         title={
           <span className="inline-flex items-center gap-2 flex-wrap">
-            <span>Eficiência de Inspeção — Mensal</span>
+            <span>
+              Eficiência de Inspeção — Mensal
+              {eficienciaMensal.year ? ` · ${eficienciaMensal.year}` : ""}
+            </span>
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-success/15 text-success border border-success/30">
               <TrendingUp className="h-3.5 w-3.5" />
-              Total: {eficienciaMensal.totEfic}%
+              Total: {eficienciaMensal.totEfic === null ? "—" : `${eficienciaMensal.totEfic}%`}
             </span>
           </span>
         }
       >
         <ResponsiveContainer width="100%" height={300} className="print-efficiency-chart">
-          <ComposedChart data={eficienciaMensal.rows} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <ComposedChart
+            data={eficienciaMensal.rows}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
             <XAxis dataKey="mesCurto" stroke="var(--color-muted-foreground)" fontSize={12} />
             <YAxis yAxisId="left" stroke="var(--color-muted-foreground)" fontSize={12} />
-            <YAxis yAxisId="right" orientation="right" stroke="var(--color-muted-foreground)" fontSize={12} tickFormatter={(v) => `${v}%`} domain={[0, (dataMax: number) => Math.max(120, Math.ceil((dataMax + 20) / 50) * 50)]} allowDataOverflow={false} />
-            <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke="var(--color-muted-foreground)"
+              fontSize={12}
+              tickFormatter={(v) => `${v}%`}
+              domain={[0, (dataMax: number) => Math.max(120, Math.ceil((dataMax + 20) / 50) * 50)]}
+              allowDataOverflow={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "var(--color-popover)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+            />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar yAxisId="left" dataKey="criadas" name="Recebidas" fill="var(--color-chart-insp)" radius={[4, 4, 0, 0]} />
-            <Bar yAxisId="left" dataKey="iniciadas" name="Inspecionadas" fill="var(--color-chart-approved)" radius={[4, 4, 0, 0]} />
-            <Line yAxisId="right" type="monotone" dataKey="efic" name="Eficiência %" stroke="var(--color-warning)" strokeWidth={2.5} dot={{ r: 4 }} />
-            <ReferenceLine yAxisId="right" y={95} stroke="var(--color-success)" strokeDasharray="6 4" label={{ value: "Meta 95%", position: "right", fill: "var(--color-success)", fontSize: 11, fontWeight: 700 }} />
+            <Bar
+              yAxisId="left"
+              dataKey="criadas"
+              name="Recebidas"
+              fill="var(--color-chart-insp)"
+              radius={[4, 4, 0, 0]}
+            />
+            <Bar
+              yAxisId="left"
+              dataKey="iniciadas"
+              name="Inspecionadas"
+              fill="var(--color-chart-approved)"
+              radius={[4, 4, 0, 0]}
+            />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="efic"
+              name="Eficiência %"
+              stroke="var(--color-warning)"
+              strokeWidth={2.5}
+              dot={{ r: 4 }}
+            />
+            <ReferenceLine
+              yAxisId="right"
+              y={95}
+              stroke="var(--color-success)"
+              strokeDasharray="6 4"
+              label={{
+                value: "Meta 95%",
+                position: "right",
+                fill: "var(--color-success)",
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            />
           </ComposedChart>
         </ResponsiveContainer>
         <div className="mt-4 overflow-x-auto print-efficiency-table">
@@ -384,36 +696,57 @@ function ConsolidadoPage() {
             <thead>
               <tr className="text-left text-muted-foreground border-b">
                 <th className="py-2 pr-2"></th>
-                {eficienciaMensal.rows.map((m) => <th key={m.mes} className="py-2 px-2 text-right font-semibold">{m.mes}</th>)}
+                {eficienciaMensal.rows.map((m) => (
+                  <th key={m.mes} className="py-2 px-2 text-right font-semibold">
+                    {m.mes}
+                  </th>
+                ))}
                 <th className="py-2 px-2 text-right font-semibold">Total</th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
               <tr className="border-b">
                 <td className="py-1 pr-2 font-semibold italic">Recebidas</td>
-                {eficienciaMensal.rows.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.criadas.toLocaleString("pt-BR")}</td>)}
-                <td className="py-1 px-2 text-right font-semibold">{eficienciaMensal.totCriadas.toLocaleString("pt-BR")}</td>
+                {eficienciaMensal.rows.map((m) => (
+                  <td key={m.mes} className="py-1 px-2 text-right">
+                    {m.criadas.toLocaleString("pt-BR")}
+                  </td>
+                ))}
+                <td className="py-1 px-2 text-right font-semibold">
+                  {eficienciaMensal.totCriadas.toLocaleString("pt-BR")}
+                </td>
               </tr>
               <tr className="border-b">
                 <td className="py-1 pr-2 font-semibold italic">Inspecionadas</td>
-                {eficienciaMensal.rows.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.iniciadas.toLocaleString("pt-BR")}</td>)}
-                <td className="py-1 px-2 text-right font-semibold">{eficienciaMensal.totIniciadas.toLocaleString("pt-BR")}</td>
+                {eficienciaMensal.rows.map((m) => (
+                  <td key={m.mes} className="py-1 px-2 text-right">
+                    {m.iniciadas.toLocaleString("pt-BR")}
+                  </td>
+                ))}
+                <td className="py-1 px-2 text-right font-semibold">
+                  {eficienciaMensal.totIniciadas.toLocaleString("pt-BR")}
+                </td>
               </tr>
               <tr>
                 <td className="py-1 pr-2 font-semibold italic">Efic.</td>
                 {eficienciaMensal.rows.map((m) => (
-                  <td key={m.mes} className={`py-1 px-2 text-right font-semibold ${m.criadas === 0 ? "text-muted-foreground" : m.efic >= 95 ? "text-success" : m.efic >= 85 ? "text-warning" : "text-destructive"}`}>
-                    {m.criadas > 0 ? `${m.efic}%` : "—"}
+                  <td
+                    key={m.mes}
+                    className={`py-1 px-2 text-right font-semibold ${m.efic === null ? "text-muted-foreground" : m.efic >= 95 ? "text-success" : m.efic >= 85 ? "text-warning" : "text-destructive"}`}
+                  >
+                    {m.efic === null ? "—" : `${m.efic.toFixed(2)}%`}
                   </td>
                 ))}
-                <td className={`py-1 px-2 text-right font-semibold ${eficienciaMensal.totEfic >= 95 ? "text-success" : eficienciaMensal.totEfic >= 85 ? "text-warning" : "text-destructive"}`}>{eficienciaMensal.totEfic}%</td>
+                <td
+                  className={`py-1 px-2 text-right font-semibold ${eficienciaMensal.totEfic === null ? "text-muted-foreground" : eficienciaMensal.totEfic >= 95 ? "text-success" : eficienciaMensal.totEfic >= 85 ? "text-warning" : "text-destructive"}`}
+                >
+                  {eficienciaMensal.totEfic === null ? "—" : `${eficienciaMensal.totEfic}%`}
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
       </SectionCard>
-
-
 
       <SectionCard
         printable
@@ -430,12 +763,20 @@ function ConsolidadoPage() {
       >
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           <span className="inline-block w-3 h-0.5 bg-info rounded-full" />
-          <span>Linha azul = meta de não conformidade ({metaNC.toFixed(1).replace(".0", "")}%)</span>
+          <span>
+            Linha azul = meta de não conformidade ({metaNC.toFixed(1).replace(".0", "")}%)
+          </span>
         </div>
         {ncOcultasPelosFiltros && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-foreground">
             <span>O recorte atual não contém não conformidades. Os dados continuam na base.</span>
-            <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="h-8 gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={resetFilters}
+              className="h-8 gap-1.5"
+            >
               <RotateCcw className="h-3.5 w-3.5" />
               Limpar filtros e exibir dados
             </Button>
@@ -445,9 +786,18 @@ function ConsolidadoPage() {
           <BarChart data={indiceNC} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
             <XAxis dataKey="mesCurto" stroke="var(--color-muted-foreground)" fontSize={12} />
-            <YAxis stroke="var(--color-muted-foreground)" fontSize={12} tickFormatter={(v) => `${v}%`} />
+            <YAxis
+              stroke="var(--color-muted-foreground)"
+              fontSize={12}
+              tickFormatter={(v) => `${v}%`}
+            />
             <Tooltip
-              contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
+              contentStyle={{
+                background: "var(--color-popover)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
               formatter={(v: number) => `${v.toFixed(2)}%`}
             />
             <ReferenceLine
@@ -464,7 +814,12 @@ function ConsolidadoPage() {
                 offset: 10,
               }}
             />
-            <Bar dataKey="pct" name="Índice NC" fill="var(--color-chart-rejected)" radius={[4, 4, 0, 0]} />
+            <Bar
+              dataKey="pct"
+              name="Índice NC"
+              fill="var(--color-chart-rejected)"
+              radius={[4, 4, 0, 0]}
+            />
           </BarChart>
         </ResponsiveContainer>
         <div className="mt-4 overflow-x-auto">
@@ -472,29 +827,56 @@ function ConsolidadoPage() {
             <thead>
               <tr className="text-left text-muted-foreground border-b">
                 <th className="py-2 pr-2"></th>
-                {indiceNC.map((m) => <th key={m.mes} className="py-2 px-2 text-right font-semibold">{m.mes}</th>)}
+                {indiceNC.map((m) => (
+                  <th key={m.mes} className="py-2 px-2 text-right font-semibold">
+                    {m.mes}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="tabular-nums">
               <tr className="border-b">
                 <td className="py-1 pr-2 font-semibold italic">Reprovado</td>
-                {indiceNC.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.reprovado.toLocaleString("pt-BR")}</td>)}
+                {indiceNC.map((m) => (
+                  <td key={m.mes} className="py-1 px-2 text-right">
+                    {m.reprovado.toLocaleString("pt-BR")}
+                  </td>
+                ))}
               </tr>
               <tr className="border-b">
                 <td className="py-1 pr-2 font-semibold italic">Aprovado</td>
-                {indiceNC.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.aprovado.toLocaleString("pt-BR")}</td>)}
+                {indiceNC.map((m) => (
+                  <td key={m.mes} className="py-1 px-2 text-right">
+                    {m.aprovado.toLocaleString("pt-BR")}
+                  </td>
+                ))}
               </tr>
               <tr className="border-b">
                 <td className="py-1 pr-2 font-semibold italic">Desvio</td>
-                {indiceNC.map((m) => <td key={m.mes} className="py-1 px-2 text-right">{m.desvio.toLocaleString("pt-BR")}</td>)}
+                {indiceNC.map((m) => (
+                  <td key={m.mes} className="py-1 px-2 text-right">
+                    {m.desvio.toLocaleString("pt-BR")}
+                  </td>
+                ))}
               </tr>
               <tr className="border-b">
                 <td className="py-1 pr-2 font-semibold italic">Subtotal</td>
-                {indiceNC.map((m) => <td key={m.mes} className="py-1 px-2 text-right font-semibold">{m.subtotal.toLocaleString("pt-BR")}</td>)}
+                {indiceNC.map((m) => (
+                  <td key={m.mes} className="py-1 px-2 text-right font-semibold">
+                    {m.subtotal.toLocaleString("pt-BR")}
+                  </td>
+                ))}
               </tr>
               <tr>
                 <td className="py-1 pr-2 font-semibold italic">Índice NC</td>
-                {indiceNC.map((m) => <td key={m.mes} className={`py-1 px-2 text-right font-semibold ${m.pct > metaNC ? "text-destructive" : "text-success"}`}>{m.subtotal > 0 ? `${m.pct.toFixed(2)}%` : "—"}</td>)}
+                {indiceNC.map((m) => (
+                  <td
+                    key={m.mes}
+                    className={`py-1 px-2 text-right font-semibold ${m.pct > metaNC ? "text-destructive" : "text-success"}`}
+                  >
+                    {m.subtotal > 0 ? `${m.pct.toFixed(2)}%` : "—"}
+                  </td>
+                ))}
               </tr>
             </tbody>
           </table>
@@ -519,32 +901,93 @@ function ConsolidadoPage() {
             <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-warning/40 bg-warning/5 p-5 text-center">
               <AlertTriangle className="h-6 w-6 text-warning" />
               <div>
-                <p className="text-sm font-semibold text-foreground">Nenhuma não conformidade neste recorte</p>
-                <p className="mt-1 text-xs text-muted-foreground">Os registros permanecem na base. Remova os filtros para recuperar o Pareto completo.</p>
+                <p className="text-sm font-semibold text-foreground">
+                  Nenhuma não conformidade neste recorte
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Os registros permanecem na base. Remova os filtros para recuperar o Pareto
+                  completo.
+                </p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={resetFilters}
+                className="gap-1.5"
+              >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Limpar filtros e exibir gráfico
               </Button>
             </div>
-          ) : <EmptyState />
+          ) : (
+            <EmptyState />
+          )
         ) : (
           <>
             <ResponsiveContainer width="100%" height={320}>
               <ComposedChart data={pareto} margin={{ top: 10, right: 30, left: 0, bottom: 60 }}>
                 <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} angle={-35} textAnchor="end" interval={0} height={70} />
+                <XAxis
+                  dataKey="label"
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={11}
+                  angle={-35}
+                  textAnchor="end"
+                  interval={0}
+                  height={70}
+                />
                 <YAxis yAxisId="left" stroke="var(--color-muted-foreground)" fontSize={12} />
-                <YAxis yAxisId="right" orientation="right" stroke="var(--color-muted-foreground)" fontSize={12} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={12}
+                  tickFormatter={(v) => `${v}%`}
+                  domain={[0, 100]}
+                />
                 <Tooltip
-                  contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number, name: string) => name === "% Acumulado" ? `${v.toFixed(1)}%` : v}
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number, name: string) =>
+                    name === "% Acumulado" ? `${v.toFixed(1)}%` : v
+                  }
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.problema ?? ""}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar yAxisId="left" dataKey="qtd" name="Ocorrências" fill="var(--color-chart-rejected)" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="pctAcc" name="% Acumulado" stroke="var(--color-warning)" strokeWidth={2.5} dot={{ r: 3 }} />
-                <ReferenceLine yAxisId="right" y={80} stroke="var(--color-info)" strokeDasharray="6 4" label={{ value: "80%", position: "right", fill: "var(--color-info)", fontSize: 11, fontWeight: 700 }} />
+                <Bar
+                  yAxisId="left"
+                  dataKey="qtd"
+                  name="Ocorrências"
+                  fill="var(--color-chart-rejected)"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="pctAcc"
+                  name="% Acumulado"
+                  stroke="var(--color-warning)"
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
+                />
+                <ReferenceLine
+                  yAxisId="right"
+                  y={80}
+                  stroke="var(--color-info)"
+                  strokeDasharray="6 4"
+                  label={{
+                    value: "80%",
+                    position: "right",
+                    fill: "var(--color-info)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                />
               </ComposedChart>
             </ResponsiveContainer>
             <div className="mt-4 overflow-x-auto">
@@ -563,7 +1006,11 @@ function ConsolidadoPage() {
                       <td className="py-1 pr-2">{i + 1}</td>
                       <td className="py-1 pr-2">{p.problema}</td>
                       <td className="py-1 px-2 text-right font-semibold">{p.qtd}</td>
-                      <td className={`py-1 px-2 text-right font-semibold ${p.pctAcc <= 80 ? "text-destructive" : "text-muted-foreground"}`}>{p.pctAcc.toFixed(1)}%</td>
+                      <td
+                        className={`py-1 px-2 text-right font-semibold ${p.pctAcc <= 80 ? "text-destructive" : "text-muted-foreground"}`}
+                      >
+                        {p.pctAcc.toFixed(1)}%
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -601,6 +1048,22 @@ function ConsolidadoPage() {
           <RankingTable rows={bottom5} />
         </SectionCard>
       </div>
+
+      <QualityDrilldown
+        kind={drilldown}
+        open={drilldown !== null}
+        onOpenChange={(open) => {
+          if (!open) setDrilldown(null);
+        }}
+        data={{ idf, alerta: alertas, rnc: rncs }}
+        efficiency={efficiency}
+        onSupplier={(supplier) =>
+          navigate({
+            to: "/fornecedor/$fornecedor",
+            params: { fornecedor: encodeURIComponent(supplier) },
+          })
+        }
+      />
     </div>
   );
 }
@@ -608,7 +1071,18 @@ function ConsolidadoPage() {
 function RankingTable({
   rows,
 }: {
-  rows: Array<{ f: string; total: number; ap: number; co: number; re: number; al: number; rn: number; pct: number; cls: "A" | "B" | "C" | "D"; status: "verde" | "azul" | "amarelo" | "vermelho" }>;
+  rows: Array<{
+    f: string;
+    total: number;
+    ap: number;
+    co: number;
+    re: number;
+    al: number;
+    rn: number;
+    pct: number;
+    cls: "A" | "B" | "C" | "D";
+    status: "verde" | "azul" | "amarelo" | "vermelho";
+  }>;
 }) {
   if (rows.length === 0) return <EmptyState />;
   return (
@@ -632,11 +1106,15 @@ function RankingTable({
               <td className="py-2 pr-2 tabular-nums">{i + 1}</td>
               <td className="py-2 pr-2 font-medium">{r.f}</td>
               <td className="py-2 pr-2 text-right tabular-nums font-semibold">{r.pct}%</td>
-              <td className="py-2 pr-2 text-center"><ClassBadge c={r.cls} /></td>
+              <td className="py-2 pr-2 text-center">
+                <ClassBadge c={r.cls} />
+              </td>
               <td className="py-2 pr-2 text-right tabular-nums">{r.total}</td>
               <td className="py-2 pr-2 text-right tabular-nums">{r.al}</td>
               <td className="py-2 pr-2 text-right tabular-nums">{r.rn}</td>
-              <td className="py-2 pr-2 text-center"><StatusDot status={r.status} /></td>
+              <td className="py-2 pr-2 text-center">
+                <StatusDot status={r.status} />
+              </td>
             </tr>
           ))}
         </tbody>
