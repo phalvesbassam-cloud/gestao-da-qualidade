@@ -843,9 +843,13 @@ function countBy(rows: IDFRow[], getter: (row: IDFRow) => string, rejectedOnly =
     .sort((a, b) => b.rejected - a.rejected || b.rate - a.rate || b.total - a.total);
 }
 
-export function answerQualityQuestion(data: DashboardData, question: string): CopilotAnswer {
+export function answerQualityQuestion(
+  data: DashboardData,
+  question: string,
+  operational?: { recebidas: number; inspecionadas: number },
+): CopilotAnswer {
   const query = normalizeText(question);
-  const snapshot = buildQualitySnapshot(data);
+  const snapshot = buildQualitySnapshot(data, operational);
   const scores = calculateSupplierQualityScores(data);
   const anomalies = detectQualityAnomalies(data.idf);
   const supplier = scores.find((item) => query.includes(normalizeText(item.fornecedor)));

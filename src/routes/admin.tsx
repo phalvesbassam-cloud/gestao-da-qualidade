@@ -70,7 +70,8 @@ function AdminPage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["app-config"] });
     },
-    onError: (e: any) => toast.error(e?.message || "Erro ao salvar"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar"),
   });
 
   return (

@@ -11,8 +11,8 @@ export type IDFRow = {
   divisao: string;
   codigoItem: string;
   quantidade: number;
-  dataCriacaoInsp: string; // campo oficial da aba IDF: Data de CRIAÇÃO Inspeção (coluna E)
-  dataInicioInsp: string;  // campo oficial da aba IDF: Data INICIO (coluna I)
+  dataCriacaoInsp: string; // data de recebimento/criação resolvida pelo mapeamento central
+  dataInicioInsp: string; // data operacional de início resolvida pelo mapeamento central
 
   // aliases legados mantidos para compatibilidade com componentes antigos
   dataRecebimento: string;

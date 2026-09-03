@@ -95,7 +95,8 @@ function EvidenciaBody({ rncId }: { rncId: string }) {
   const del = useMutation({
     mutationFn: (id: string) => delFn({ data: { id, autor: author ?? undefined } }),
     onSuccess: () => { toast.success("Evidência removida"); qc.invalidateQueries({ queryKey: ["evidencias", rncId] }); },
-    onError: (e: any) => toast.error(e?.message ?? "Erro ao remover"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao remover"),
   });
 
   async function handleUpload() {
@@ -120,8 +121,8 @@ function EvidenciaBody({ rncId }: { rncId: string }) {
       const input = document.getElementById(`file-${rncId}`) as HTMLInputElement | null;
       if (input) input.value = "";
       qc.invalidateQueries({ queryKey: ["evidencias", rncId] });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Erro no upload");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erro no upload");
     } finally {
       setUploading(false);
     }

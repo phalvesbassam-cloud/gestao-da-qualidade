@@ -63,7 +63,7 @@ export function QualityHeaderIntelligence({
   isFetching: boolean;
   fetchedAt?: string;
 }) {
-  const { data, filtered } = useDashboardFiltered();
+  const { data, filtered, efficiency } = useDashboardFiltered();
   const scoped = useMemo(() => currentData(data, filtered), [data, filtered]);
   const scores = useMemo(() => calculateSupplierQualityScores(scoped), [scoped]);
   const anomalies = useMemo(() => detectQualityAnomalies(scoped.idf), [scoped.idf]);
@@ -117,7 +117,13 @@ export function QualityHeaderIntelligence({
         />
         {isFetching ? "Sincronizando" : "Dados online"}
       </div>
-      <QualityCopilotButton data={scoped} />
+      <QualityCopilotButton
+        data={scoped}
+        operational={{
+          recebidas: efficiency.recebidas,
+          inspecionadas: efficiency.inspecionadas,
+        }}
+      />
     </>
   );
 }
@@ -141,7 +147,13 @@ function NotificationRow({ item }: { item: QualityNotification }) {
   );
 }
 
-function QualityCopilotButton({ data }: { data: DashboardData }) {
+function QualityCopilotButton({
+  data,
+  operational,
+}: {
+  data: DashboardData;
+  operational: { recebidas: number; inspecionadas: number };
+}) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<CopilotAnswer | null>(null);
 
@@ -149,7 +161,7 @@ function QualityCopilotButton({ data }: { data: DashboardData }) {
     const clean = value.trim();
     if (!clean) return;
     setQuestion(clean);
-    setAnswer(answerQualityQuestion(data, clean));
+    setAnswer(answerQualityQuestion(data, clean, operational));
   };
 
   return (

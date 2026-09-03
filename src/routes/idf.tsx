@@ -9,6 +9,7 @@ import { useDashboardFiltered } from "@/hooks/use-data";
 import { ReincBadge } from "@/components/recorrencia-modal";
 import { NotaEditButton } from "@/components/nota-edit-modal";
 import { scoreFornecedores, classificacaoFromIdf } from "@/lib/idf-calc";
+import type { IDFRow } from "@/lib/types";
 import {
   Bar,
   BarChart,
@@ -112,7 +113,9 @@ function IdfPage() {
 
   const totalRecorrencias = rows.reduce((s, r) => s + (r.irPoints > 0 ? 1 : 0), 0);
   const irMedio = score.length > 0 ? Math.round((score.reduce((s, r) => s + r.irPct, 0) / score.length) * 10) / 10 : 0;
-  const maiorIR = score.reduce((m, s) => s.ir > m.ir ? s : m, { ir: 0, fornecedor: "—" } as any);
+  const maiorIR = score.length
+    ? score.reduce((m, s) => (s.ir > m.ir ? s : m))
+    : { ir: 0, fornecedor: "—" };
   const irGeral = score.reduce((s, r) => s + r.ir, 0);
   const topReinc = [...score].filter(s => s.ir > 0).sort((a, b) => b.ir - a.ir).slice(0, 10);
 
@@ -301,7 +304,7 @@ function StatusBadge({ s }: { s: string }) {
   return <Badge variant="secondary">{s || "—"}</Badge>;
 }
 
-function DesfechoBadge({ row }: { row: any }) {
+function DesfechoBadge({ row }: { row: IDFRow }) {
   const d = row.desfecho || "Não analisado";
 
   if (d === "Aprovado depois") {

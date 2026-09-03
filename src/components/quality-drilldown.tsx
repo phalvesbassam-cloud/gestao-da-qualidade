@@ -125,9 +125,11 @@ export function QualityDrilldown({
             <Search className="h-4 w-4" /> Drill-down · dados reais
           </div>
           <SheetTitle className="text-xl">{TITLES[activeKind]}</SheetTitle>
-          <SheetDescription className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{totalLabel}</Badge>
-            <span>Do indicador ao registro de origem, respeitando o recorte atual.</span>
+          <SheetDescription asChild>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{totalLabel}</Badge>
+              <span>Do indicador ao registro de origem, respeitando o recorte atual.</span>
+            </div>
           </SheetDescription>
         </SheetHeader>
 

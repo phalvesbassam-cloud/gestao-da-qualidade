@@ -26,6 +26,17 @@ const ACOES_LABEL: Record<string, { label: string; tone: string }> = {
 
 const ENTIDADES = ["nota_override", "rnc_evidencia", "app_config"];
 
+type AuditFilters = {
+  autor?: string;
+  entidade?: string;
+  acao?: string;
+  fornecedor?: string;
+  item?: string;
+  dataInicio?: string;
+  dataFim?: string;
+  limit?: number;
+};
+
 function fmt(iso: string) { try { return new Date(iso).toLocaleString("pt-BR"); } catch { return iso; } }
 
 function AuditPage() {
@@ -38,10 +49,10 @@ function AuditPage() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
 
-  const [query, setQuery] = useState({});
+  const [query, setQuery] = useState<AuditFilters>({});
   const { data: rows = [], isLoading, refetch } = useQuery({
     queryKey: ["audit", query],
-    queryFn: () => fn({ data: query as any }),
+    queryFn: () => fn({ data: query }),
   });
 
   function aplicar() {

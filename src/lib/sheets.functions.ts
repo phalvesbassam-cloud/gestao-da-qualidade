@@ -246,7 +246,7 @@ export const saveAppConfig = createServerFn({ method: "POST" })
       acao: "config_atualizada",
       entidade: "app_config",
       entidade_id: "global",
-      dados: data as any,
+      dados: { ...data },
     });
 
     return { ok: true };
@@ -398,7 +398,7 @@ export type AuditEntry = {
   entidade_id: string | null;
   fornecedor: string | null;
   item: string | null;
-  dados: any;
+  dados: string;
   created_at: string;
 };
 

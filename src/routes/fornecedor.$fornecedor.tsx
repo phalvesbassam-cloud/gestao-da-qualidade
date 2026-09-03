@@ -67,8 +67,14 @@ function Supplier360Page() {
         supplierForRnc(row, data.idf)?.toLocaleLowerCase("pt-BR") ===
         supplier.trim().toLocaleLowerCase("pt-BR"),
     );
-    const scores = calculateSupplierQualityScores({ idf, alerta, rnc });
-    return { idf, alerta, rnc, score: scores[0] ?? null };
+    // O score precisa ser normalizado contra toda a carteira; calcular apenas
+    // com o fornecedor aberto faria todos os fatores relativos virarem máximos.
+    const score = calculateSupplierQualityScores(data).find(
+      (entry) =>
+        entry.fornecedor.trim().toLocaleLowerCase("pt-BR") ===
+        supplier.trim().toLocaleLowerCase("pt-BR"),
+    );
+    return { idf, alerta, rnc, score: score ?? null };
   }, [data, supplier]);
 
   const evolution = useMemo(() => {

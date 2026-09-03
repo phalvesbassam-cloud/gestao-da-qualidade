@@ -260,10 +260,10 @@ function findIDFHeaderRow(rows: readonly unknown[][]): number {
 }
 
 function resolveIDFColumns(header: readonly unknown[]): Record<IDFColumnKey, number> {
+  const normalizedHeader = header.map(normalizeHeader);
   const headerIndex = new Map<string, number>();
 
-  header.forEach((cell, index) => {
-    const normalized = normalizeHeader(cell);
+  normalizedHeader.forEach((normalized, index) => {
     if (normalized && !headerIndex.has(normalized)) headerIndex.set(normalized, index);
   });
 
@@ -275,6 +275,35 @@ function resolveIDFColumns(header: readonly unknown[]): Record<IDFColumnKey, num
       .map((name) => headerIndex.get(normalizeHeader(name)))
       .find((index): index is number => index !== undefined);
     resolved[key] = byHeader ?? spec.fallbackIndex;
+  }
+
+  /*
+   * Perfil documentado da aba IDF publicada em 03/09/2026.
+   *
+   * Nessa fonte, os dois títulos de data foram trocados, mas os valores não:
+   * - a data imediatamente antes de "Horário Início (Recebimento)" é a criação/recebimento;
+   * - a data imediatamente antes de "Horário de Finalização Inspeção" é o início operacional.
+   *
+   * A confirmação não depende da ordem cronológica: os mesmos processos (por exemplo,
+   * 13257 e 13356) constam na evidência operacional com essas semânticas. O perfil só
+   * é aplicado quando a assinatura completa dos cabeçalhos trocados está presente;
+   * planilhas com os títulos oficiais continuam resolvidas normalmente por nome.
+   */
+  const receiptTimeIndex = normalizedHeader.indexOf("horario inicio recebimento");
+  const inspectionFinishTimeIndex = normalizedHeader.indexOf("horario de finalizacao inspecao");
+  const creationValueIndex = receiptTimeIndex - 1;
+  const inspectionValueIndex = inspectionFinishTimeIndex - 1;
+  const isPublishedIDFWithSwappedDateTitles =
+    receiptTimeIndex > 0 &&
+    inspectionFinishTimeIndex > 0 &&
+    normalizedHeader[creationValueIndex] === "data de inicio inspecao" &&
+    normalizedHeader[inspectionValueIndex] === "data criacao" &&
+    normalizedHeader.includes("inspetor inicio") &&
+    normalizedHeader.includes("status");
+
+  if (isPublishedIDFWithSwappedDateTitles) {
+    resolved.dataCriacaoInsp = creationValueIndex;
+    resolved.dataInicioInsp = inspectionValueIndex;
   }
 
   return resolved;
@@ -315,8 +344,8 @@ export function mapIDF(
       quantidade: num(cell(r, "quantidade")),
       dataCriacaoInsp,
       dataInicioInsp,
-      dataRecebimento: dataInicioInsp,
-      dataFimInsp: dataCriacaoInsp,
+      dataRecebimento: dataCriacaoInsp,
+      dataFimInsp: dataInicioInsp,
       horaRecebimento: cell(r, "horaRecebimento"),
       horaInicioInsp: cell(r, "horaInicioInsp"),
       horaFimInsp: cell(r, "horaFimInsp"),

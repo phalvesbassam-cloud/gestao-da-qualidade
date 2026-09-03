@@ -207,10 +207,10 @@ function Shell() {
         className={cn("flex flex-col min-w-0 transition-[margin] duration-200", !tv && "md:ml-16")}
       >
         <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b">
-          <div className="flex items-center gap-3 px-4 md:px-6 py-3">
+          <div className="flex items-center gap-2 px-3 py-3 md:gap-3 md:px-6">
             <PageTitle />
             <div className="flex-1" />
-            <div className="tv-hide flex items-center gap-2">
+            <div className="tv-hide flex shrink-0 items-center gap-1 sm:gap-2">
               <QualityHeaderIntelligence isFetching={q.isFetching} fetchedAt={q.data?.fetchedAt} />
               <Button
                 size="sm"
@@ -253,7 +253,8 @@ function Shell() {
                 onClick={toggleTv}
                 title="Modo TV"
               >
-                <Tv className="h-4 w-4 mr-1" /> TV
+                <Tv className="h-4 w-4 md:mr-1" />
+                <span className="hidden md:inline">TV</span>
               </Button>
             </div>
             {tv && (
@@ -308,8 +309,8 @@ function PageTitle() {
     "/inspecao": "Gestão de Inspeção",
   };
   return (
-    <div className="flex flex-col leading-tight">
-      <h1 className="text-base md:text-xl font-display font-semibold tracking-tight">
+    <div className="min-w-0 max-w-24 flex flex-col leading-tight sm:max-w-none">
+      <h1 className="truncate text-sm font-display font-semibold tracking-tight md:text-xl">
         {isSupplier ? "Fornecedor 360°" : (labels[loc.pathname] ?? n?.label ?? "QualiHub")}
       </h1>
       <span className="hidden md:inline text-[11px] text-muted-foreground">

@@ -109,7 +109,8 @@ function NotaEditModal({ row, open, onOpenChange }: { row: IDFRow; open: boolean
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       onOpenChange(false);
     },
-    onError: (e: any) => toast.error(e?.message || "Erro ao salvar"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar"),
   });
 
   const restore = useMutation({
@@ -119,7 +120,8 @@ function NotaEditModal({ row, open, onOpenChange }: { row: IDFRow; open: boolean
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       onOpenChange(false);
     },
-    onError: (e: any) => toast.error(e?.message || "Erro ao restaurar"),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao restaurar"),
   });
 
   return (
