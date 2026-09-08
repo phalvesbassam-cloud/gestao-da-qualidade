@@ -328,7 +328,9 @@ export function EficienciaInspecaoCard({
           ? { Icon: ArrowDown, color: "text-red-400" }
           : { Icon: ArrowRight, color: "text-slate-400" };
 
-  const tooltip = `Eficiência = (Recebidos ÷ Inspecionados) × 100\n${criadas.toLocaleString("pt-BR")} ÷ ${iniciadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(2)}%\nRecebidos sem data de início: ${pend.toLocaleString("pt-BR")}`;
+const tooltip =
+  `Eficiência = (Inspecionados ÷ Recebidos) × 100\n` +
+  `${iniciadas.toLocaleString("pt-BR")} ÷ ${criadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(2)}%`;
 
   return (
     <button

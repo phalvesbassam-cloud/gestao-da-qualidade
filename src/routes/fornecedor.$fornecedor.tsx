@@ -190,7 +190,7 @@ function Supplier360Page() {
         <KpiCard
           label="Eficiência"
           value={inspected > 0 ? `${operationalEfficiency.toFixed(2)}%` : "—"}
-          hint="Recebidos ÷ Inspecionados"
+          hint="Inspecionados ÷ Recebidos"
           tone={operationalEfficiency >= 95 ? "success" : "warning"}
         />
         <KpiCard

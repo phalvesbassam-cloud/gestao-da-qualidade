@@ -467,16 +467,16 @@ export function buildQualitySnapshot(
   const condicionais = data.idf.filter((row) => isConditional(row.status)).length;
   const reprovados = data.idf.filter((row) => isRejected(row.status)).length;
   const rncsAbertas = data.rnc.filter(isRncOpen).length;
-  return {
-    inspecoes,
-    recebidos,
-    inspecionados,
-    eficiencia: inspecionados > 0 ? round((recebidos / inspecionados) * 100, 2) : 0,
-    aprovados,
-    condicionais,
-    reprovados,
-    rejectionRate: inspecoes > 0 ? round((reprovados / inspecoes) * 100, 2) : 0,
-    idfGlobal: inspecoes > 0 ? round((aprovados / inspecoes) * 100, 1) : 0,
+return {
+  inspecoes,
+  recebidos,
+  inspecionados,
+  eficiencia: recebidos > 0 ? round((inspecionados / recebidos) * 100, 2) : 0,
+  aprovados,
+  condicionais,
+  reprovados,
+  rejectionRate: inspecoes > 0 ? round((reprovados / inspecoes) * 100, 2) : 0,
+  idfGlobal: inspecoes > 0 ? round((aprovados / inspecoes) * 100, 1) : 0,
     ppm: calcPPM(data.idf).ppm,
     fornecedores: new Set(
       data.idf.map((row) => row.fornecedor).filter((value) => value && value !== "—"),
@@ -611,7 +611,7 @@ export function buildMonthlyEfficiency(rows: IDFRow[], selectedYear?: number): M
           !parseBrDate(row.dataInicioInsp)
         );
       }).length,
-      eficiencia: inspecionadas > 0 ? round((recebidas / inspecionadas) * 100, 2) : null,
+      eficiencia: recebidas > 0 ? round((inspecionadas / recebidas) * 100, 2) : null,
     };
   });
 }

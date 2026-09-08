@@ -338,7 +338,7 @@ function ConsolidadoPage() {
     }));
     const totCriadas = rows.reduce((s, r) => s + r.criadas, 0);
     const totIniciadas = rows.reduce((s, r) => s + r.iniciadas, 0);
-    const totEfic = totIniciadas > 0 ? Math.round((totCriadas / totIniciadas) * 10000) / 100 : null;
+    const totEfic = totCriadas > 0 ? Math.round((totIniciadas / totCriadas) * 10000) / 100 : null;
     return { rows, totCriadas, totIniciadas, totEfic, year: source[0]?.year };
   }, [efficiency]);
 
@@ -649,7 +649,7 @@ function ConsolidadoPage() {
                 background: "var(--color-popover)",
                 border: "1px solid var(--color-border)",
                 borderRadius: 8,
-                fontSize: 12,
+                fontSize: 12, 
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />

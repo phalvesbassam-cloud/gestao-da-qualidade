@@ -234,7 +234,9 @@ function EfficiencyDetail({
 }) {
   const received = efficiency?.recebidasRows ?? [];
   const inspected = efficiency?.inspecionadasRows ?? [];
-  const pct = inspected.length ? (received.length / inspected.length) * 100 : null;
+const pct = received.length
+  ? (inspected.length / received.length) * 100
+  : null;
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -243,7 +245,7 @@ function EfficiencyDetail({
         <Metric
           label="Eficiência"
           value={pct === null ? "—" : `${pct.toFixed(2)}%`}
-          hint="Recebidos ÷ Inspecionados × 100"
+          hint="Inspecionados ÷ Recebidos × 100"
         />
       </div>
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
