@@ -18,6 +18,7 @@ import { Route as AlertaRouteImport } from './routes/alerta'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AcoesRouteImport } from './routes/acoes'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as IndexBackupRouteImport } from './routes/index.backup'
 import { Route as FornecedorFornecedorRouteImport } from './routes/fornecedor.$fornecedor'
 
 const TimelineRoute = TimelineRouteImport.update({
@@ -65,6 +66,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IndexBackupRoute = IndexBackupRouteImport.update({
+  id: '/index/backup',
+  path: '/index/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FornecedorFornecedorRoute = FornecedorFornecedorRouteImport.update({
   id: '/fornecedor/$fornecedor',
   path: '/fornecedor/$fornecedor',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/rnc': typeof RncRoute
   '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
+  '/index/backup': typeof IndexBackupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/rnc': typeof RncRoute
   '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
+  '/index/backup': typeof IndexBackupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   '/rnc': typeof RncRoute
   '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
+  '/index/backup': typeof IndexBackupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/rnc'
     | '/timeline'
     | '/fornecedor/$fornecedor'
+    | '/index/backup'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/rnc'
     | '/timeline'
     | '/fornecedor/$fornecedor'
+    | '/index/backup'
   id:
     | '__root__'
     | '/'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/rnc'
     | '/timeline'
     | '/fornecedor/$fornecedor'
+    | '/index/backup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -158,6 +170,7 @@ export interface RootRouteChildren {
   RncRoute: typeof RncRoute
   TimelineRoute: typeof TimelineRoute
   FornecedorFornecedorRoute: typeof FornecedorFornecedorRoute
+  IndexBackupRoute: typeof IndexBackupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/index/backup': {
+      id: '/index/backup'
+      path: '/index/backup'
+      fullPath: '/index/backup'
+      preLoaderRoute: typeof IndexBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fornecedor/$fornecedor': {
       id: '/fornecedor/$fornecedor'
       path: '/fornecedor/$fornecedor'
@@ -246,6 +266,7 @@ const rootRouteChildren: RootRouteChildren = {
   RncRoute: RncRoute,
   TimelineRoute: TimelineRoute,
   FornecedorFornecedorRoute: FornecedorFornecedorRoute,
+  IndexBackupRoute: IndexBackupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

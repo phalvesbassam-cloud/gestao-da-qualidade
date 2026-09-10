@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Bell,
-  Bot,
   CheckCircle2,
   CircleAlert,
   Database,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import agenteia from "@/assets/agenteia.png";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -166,49 +166,96 @@ function QualityCopilotButton({
 
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
-          title="Abrir Quali Copilot"
-        >
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden xl:inline">QualiAI</span>
-        </Button>
-      </SheetTrigger>
+<SheetTrigger asChild>
+  <Button
+    size="sm"
+    variant="outline"
+    className="gap-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+    title="Abrir QualiAI"
+  >
+    <img
+      src={agenteia}
+      alt="QualiAI"
+      className="h-5 w-5 rounded-full object-cover"
+    />
+    <span className="hidden xl:inline">QualiAI</span>
+  </Button>
+</SheetTrigger>
       <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-xl">
-        <SheetHeader className="border-b bg-gradient-to-br from-primary/10 to-transparent p-6 text-left">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-            <Bot className="h-4 w-4" /> Quality Copilot
-          </div>
-          <SheetTitle>QualiAI</SheetTitle>
-          <SheetDescription>
-            Consulta analítica com contexto do recorte atual. As respostas são calculadas antes de
-            serem exibidas.
-          </SheetDescription>
-        </SheetHeader>
+<SheetHeader className="border-b bg-gradient-to-br from-primary/10 via-background to-background p-6 text-left">
+  <div className="flex items-center gap-4">
+    <div className="relative shrink-0">
+      <img
+        src={agenteia}
+        alt="Avatar QualiAI"
+        className="h-20 w-20 rounded-2xl border border-primary/30 object-cover shadow-lg"
+      />
+
+      <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500">
+        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+      </span>
+    </div>
+
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+        <Sparkles className="h-4 w-4" />
+        Quality Copilot
+      </div>
+
+      <SheetTitle className="mt-1 text-xl">
+        QualiAI
+      </SheetTitle>
+
+      <SheetDescription className="mt-1 leading-relaxed">
+        Seu assistente de inteligência da qualidade. Analiso fornecedores,
+        defeitos, SKUs, RNCs e tendências do recorte atual.
+      </SheetDescription>
+    </div>
+  </div>
+</SheetHeader>
         <ScrollArea className="flex-1">
           <div className="space-y-5 p-6">
             {!answer && (
-              <div className="rounded-2xl border bg-muted/25 p-5">
-                <p className="text-sm font-semibold">O que você quer investigar?</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Experimente uma das análises abaixo ou informe o nome de um fornecedor.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {SUGGESTIONS.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => ask(suggestion)}
-                      className="rounded-full border bg-background px-3 py-1.5 text-left text-xs hover:border-primary hover:text-primary"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
+<div className="overflow-hidden rounded-2xl border bg-muted/25">
+  <div className="flex items-center gap-4 border-b bg-primary/5 p-5">
+    <img
+      src={agenteia}
+      alt="QualiAI"
+      className="h-14 w-14 rounded-xl border border-primary/20 object-cover"
+    />
+
+    <div>
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+        <Sparkles className="h-4 w-4" />
+        Análise QualiAI
+      </div>
+
+      <p className="mt-1 text-sm font-semibold">
+        O que você quer investigar?
+      </p>
+    </div>
+  </div>
+
+  <div className="p-5">
+    <p className="text-xs leading-relaxed text-muted-foreground">
+      Posso investigar fornecedores, reprovações, defeitos, SKUs, RNCs,
+      riscos e tendências utilizando os dados carregados no QualiHub.
+    </p>
+
+    <div className="mt-4 flex flex-wrap gap-2">
+      {SUGGESTIONS.map((suggestion) => (
+        <button
+          key={suggestion}
+          type="button"
+          onClick={() => ask(suggestion)}
+          className="rounded-full border bg-background px-3 py-1.5 text-left text-xs transition-colors hover:border-primary hover:text-primary"
+        >
+          {suggestion}
+        </button>
+      ))}
+    </div>
+  </div>
+</div>
             )}
             {answer && (
               <AnswerCard
@@ -256,10 +303,19 @@ function AnswerCard({
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border bg-card">
-      <div className="border-b bg-primary/5 p-5">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          <Sparkles className="h-4 w-4" /> Análise QualiAI
-        </div>
+<div className="border-b bg-primary/5 p-5">
+  <div className="flex items-center gap-3">
+    <img
+      src={agenteia}
+      alt="QualiAI"
+      className="h-10 w-10 rounded-xl border border-primary/20 object-cover"
+    />
+
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+      <Sparkles className="h-4 w-4" />
+      Análise QualiAI
+    </div>
+  </div>
         <h3 className="mt-2 text-lg font-semibold">{answer.title}</h3>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{answer.summary}</p>
       </div>

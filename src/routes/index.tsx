@@ -44,7 +44,7 @@ import {
 } from "@/components/dashboard-ui";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
-import { scoreFornecedores } from "@/lib/idf-calc";
+import { parseBrDate, scoreFornecedores } from "@/lib/idf-calc";
 import {
   QualityCommandHero,
   QualityIntelligenceSections,
@@ -100,6 +100,7 @@ function ConsolidadoPage() {
   const alertas = filtered.alerta;
   const rncs = filtered.rnc;
   const [drilldown, setDrilldown] = useState<DrilldownKind | null>(null);
+  const [ncMode, setNcMode] = useState<"inspecoes" | "sku">("inspecoes");
   const lower = (value: unknown) => String(value ?? "").toLowerCase();
 
   const scopedData = useMemo(
@@ -247,51 +248,70 @@ function ConsolidadoPage() {
     return [...map.values()].sort((a, b) => a.mes.localeCompare(b.mes));
   }, [idf, alertas, rncs]);
 
-  // Índice de Não Conformidade mensal (por SKUs únicos)
-  const indiceNC = useMemo(() => {
-    // por mês: conjuntos de SKUs distintos por status
-    const map = new Map<
-      number,
-      { reprovado: Set<string>; aprovado: Set<string>; desvio: Set<string> }
-    >();
-    for (const r of idf) {
-      if (!r.dataReferencia) continue;
-      if (r.dataReferencia.getFullYear() !== 2026) continue;
-      const sku = (r.codigoItem || "").trim();
-      if (!sku) continue;
-      const m = r.dataReferencia.getMonth();
-      const e = map.get(m) ?? { reprovado: new Set(), aprovado: new Set(), desvio: new Set() };
-      const s = lower(r.status);
-      if (s.includes("reprov")) e.reprovado.add(sku);
-      else if (s.includes("condicional")) e.desvio.add(sku);
-      else if (s.includes("aprovado")) e.aprovado.add(sku);
-      map.set(m, e);
-    }
-    return MESES_PT.map((mes, i) => {
-      const e = map.get(i) ?? {
-        reprovado: new Set<string>(),
-        aprovado: new Set<string>(),
-        desvio: new Set<string>(),
-      };
-      const reprovado = e.reprovado.size;
-      const aprovado = e.aprovado.size;
-      const desvio = e.desvio.size;
-      // Subtotal = SKUs únicos no mês (união) para evitar dupla contagem
-      const union = new Set<string>([...e.reprovado, ...e.aprovado, ...e.desvio]);
-      const subtotal = union.size;
-      const pct = subtotal > 0 ? (reprovado / subtotal) * 100 : 0;
+// Índice de Não Conformidade mensal — alterna entre inspeções e SKUs únicos.
+// A data-base é a Data de Início da Inspeção, a mesma usada em "Inspecionadas".
+const indiceNC = useMemo(() => {
+  const rows = efficiency.baseRows;
+
+  return MESES_PT.map((mes, month) => {
+    const monthRows = rows.filter((row) => {
+      const date = parseBrDate(row.dataInicioInsp);
+      return date?.getFullYear() === 2026 && date.getMonth() === month;
+    });
+
+    if (ncMode === "sku") {
+      const inspectedSkus = new Set<string>();
+      const rejectedSkus = new Set<string>();
+
+      for (const row of monthRows) {
+        const sku = (row.codigoItem || "").trim();
+        if (!sku) continue;
+
+        inspectedSkus.add(sku);
+
+        if (lower(row.status).includes("reprov")) {
+          rejectedSkus.add(sku);
+        }
+      }
+
+      const reprovado = rejectedSkus.size;
+      const totalInspecionado = inspectedSkus.size;
+      const pct =
+        totalInspecionado > 0
+          ? (reprovado / totalInspecionado) * 100
+          : 0;
+
       return {
         mes,
         mesCurto: mes.slice(0, 3),
         reprovado,
-        aprovado,
-        desvio,
-        subtotal,
+        totalInspecionado,
         pct: Math.round(pct * 100) / 100,
       };
-    });
-  }, [idf]);
-  const metaNC = 2.0;
+    }
+
+    const reprovado = monthRows.filter((row) =>
+      lower(row.status).includes("reprov"),
+    ).length;
+
+    const totalInspecionado = monthRows.length;
+
+    const pct =
+      totalInspecionado > 0
+        ? (reprovado / totalInspecionado) * 100
+        : 0;
+
+    return {
+      mes,
+      mesCurto: mes.slice(0, 3),
+      reprovado,
+      totalInspecionado,
+      pct: Math.round(pct * 100) / 100,
+    };
+  });
+}, [efficiency.baseRows, ncMode]);
+
+const metaNC = 2.0;
 
   // Pareto de problemas (não conformidades = reprovados + condicionais)
   const pareto = useMemo(() => {
@@ -749,139 +769,210 @@ function ConsolidadoPage() {
       </SectionCard>
 
       <SectionCard
-        printable
-        printTitle="Índice de Não Conformidade (mensal · por SKUs únicos)"
-        title={
-          <span className="inline-flex items-center gap-2 flex-wrap">
-            <span>Índice de Não Conformidade (mensal · por SKUs únicos)</span>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-info/15 text-info border border-info/30">
-              <TrendingUp className="h-3.5 w-3.5" />
-              Meta: {metaNC.toFixed(1).replace(".0", "")}%
-            </span>
-          </span>
-        }
+  printable
+  printTitle={`Índice de Não Conformidade — ${
+    ncMode === "inspecoes" ? "por inspeções" : "por SKU único"
+  }`}
+  title={
+    <span className="inline-flex items-center gap-2 flex-wrap">
+      <span>Índice de Não Conformidade — Mensal</span>
+
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-info/15 text-info border border-info/30">
+        <TrendingUp className="h-3.5 w-3.5" />
+        Meta: {metaNC.toFixed(1).replace(".0", "")}%
+      </span>
+    </span>
+  }
+>
+  <div className="mb-4 grid grid-cols-2 rounded-xl bg-muted/60 p-1">
+    <button
+      type="button"
+      onClick={() => setNcMode("inspecoes")}
+      className={`rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+        ncMode === "inspecoes"
+          ? "border border-primary bg-background text-primary shadow-sm"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      Por inspeções
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setNcMode("sku")}
+      className={`rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+        ncMode === "sku"
+          ? "border border-primary bg-background text-primary shadow-sm"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      Por SKU único
+    </button>
+  </div>
+
+  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground mb-2">
+    <span>
+      {ncMode === "inspecoes"
+        ? "Reprovados do mês ÷ total de inspeções do mês × 100"
+        : "SKUs únicos reprovados ÷ total de SKUs únicos inspecionados no mês × 100"}
+    </span>
+
+    <span>
+      Linha azul = meta ({metaNC.toFixed(1).replace(".0", "")}%)
+    </span>
+  </div>
+
+  {ncOcultasPelosFiltros && (
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-foreground">
+      <span>
+        O recorte atual não contém não conformidades. Os dados continuam na base.
+      </span>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={resetFilters}
+        className="h-8 gap-1.5"
       >
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-          <span className="inline-block w-3 h-0.5 bg-info rounded-full" />
-          <span>
-            Linha azul = meta de não conformidade ({metaNC.toFixed(1).replace(".0", "")}%)
-          </span>
-        </div>
-        {ncOcultasPelosFiltros && (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-foreground">
-            <span>O recorte atual não contém não conformidades. Os dados continuam na base.</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={resetFilters}
-              className="h-8 gap-1.5"
+        <RotateCcw className="h-3.5 w-3.5" />
+        Limpar filtros e exibir dados
+      </Button>
+    </div>
+  )}
+
+  <ResponsiveContainer width="100%" height={280}>
+    <BarChart
+      data={indiceNC}
+      margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+    >
+      <CartesianGrid
+        stroke="var(--color-border)"
+        strokeDasharray="3 3"
+      />
+
+      <XAxis
+        dataKey="mesCurto"
+        stroke="var(--color-muted-foreground)"
+        fontSize={12}
+      />
+
+      <YAxis
+        stroke="var(--color-muted-foreground)"
+        fontSize={12}
+        tickFormatter={(v) => `${v}%`}
+      />
+
+      <Tooltip
+        contentStyle={{
+          background: "var(--color-popover)",
+          border: "1px solid var(--color-border)",
+          borderRadius: 8,
+          fontSize: 12,
+        }}
+        formatter={(v: number) => `${v.toFixed(2)}%`}
+      />
+
+      <ReferenceLine
+        y={metaNC}
+        stroke="var(--color-info)"
+        strokeWidth={3}
+        strokeDasharray="6 4"
+        label={{
+          value: `META ${metaNC.toFixed(1).replace(".0", "")}%`,
+          position: "right",
+          fill: "var(--color-info)",
+          fontSize: 12,
+          fontWeight: 700,
+          offset: 10,
+        }}
+      />
+
+      <Bar
+        dataKey="pct"
+        name="Índice NC"
+        fill="var(--color-chart-rejected)"
+        radius={[4, 4, 0, 0]}
+      />
+    </BarChart>
+  </ResponsiveContainer>
+
+  <div className="mt-4 overflow-x-auto">
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-muted-foreground border-b">
+          <th className="py-2 pr-2"></th>
+
+          {indiceNC.map((m) => (
+            <th
+              key={m.mes}
+              className="py-2 px-2 text-right font-semibold"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Limpar filtros e exibir dados
-            </Button>
-          </div>
-        )}
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={indiceNC} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-            <XAxis dataKey="mesCurto" stroke="var(--color-muted-foreground)" fontSize={12} />
-            <YAxis
-              stroke="var(--color-muted-foreground)"
-              fontSize={12}
-              tickFormatter={(v) => `${v}%`}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "var(--color-popover)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              formatter={(v: number) => `${v.toFixed(2)}%`}
-            />
-            <ReferenceLine
-              y={metaNC}
-              stroke="var(--color-info)"
-              strokeWidth={3}
-              strokeDasharray="6 4"
-              label={{
-                value: `META ${metaNC.toFixed(1).replace(".0", "")}%`,
-                position: "right",
-                fill: "var(--color-info)",
-                fontSize: 12,
-                fontWeight: 700,
-                offset: 10,
-              }}
-            />
-            <Bar
-              dataKey="pct"
-              name="Índice NC"
-              fill="var(--color-chart-rejected)"
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-muted-foreground border-b">
-                <th className="py-2 pr-2"></th>
-                {indiceNC.map((m) => (
-                  <th key={m.mes} className="py-2 px-2 text-right font-semibold">
-                    {m.mes}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="tabular-nums">
-              <tr className="border-b">
-                <td className="py-1 pr-2 font-semibold italic">Reprovado</td>
-                {indiceNC.map((m) => (
-                  <td key={m.mes} className="py-1 px-2 text-right">
-                    {m.reprovado.toLocaleString("pt-BR")}
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-b">
-                <td className="py-1 pr-2 font-semibold italic">Aprovado</td>
-                {indiceNC.map((m) => (
-                  <td key={m.mes} className="py-1 px-2 text-right">
-                    {m.aprovado.toLocaleString("pt-BR")}
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-b">
-                <td className="py-1 pr-2 font-semibold italic">Desvio</td>
-                {indiceNC.map((m) => (
-                  <td key={m.mes} className="py-1 px-2 text-right">
-                    {m.desvio.toLocaleString("pt-BR")}
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-b">
-                <td className="py-1 pr-2 font-semibold italic">Subtotal</td>
-                {indiceNC.map((m) => (
-                  <td key={m.mes} className="py-1 px-2 text-right font-semibold">
-                    {m.subtotal.toLocaleString("pt-BR")}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="py-1 pr-2 font-semibold italic">Índice NC</td>
-                {indiceNC.map((m) => (
-                  <td
-                    key={m.mes}
-                    className={`py-1 px-2 text-right font-semibold ${m.pct > metaNC ? "text-destructive" : "text-success"}`}
-                  >
-                    {m.subtotal > 0 ? `${m.pct.toFixed(2)}%` : "—"}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
+              {m.mes}
+            </th>
+          ))}
+        </tr>
+      </thead>
+
+      <tbody className="tabular-nums">
+        <tr className="border-b">
+          <td className="py-1 pr-2 font-semibold italic">
+            {ncMode === "inspecoes" ? "Reprovados" : "SKUs NC"}
+          </td>
+
+          {indiceNC.map((m) => (
+            <td
+              key={m.mes}
+              className="py-1 px-2 text-right"
+            >
+              {m.reprovado.toLocaleString("pt-BR")}
+            </td>
+          ))}
+        </tr>
+
+        <tr className="border-b">
+          <td className="py-1 pr-2 font-semibold italic">
+            {ncMode === "inspecoes"
+              ? "Total inspecionado"
+              : "SKUs inspecionados"}
+          </td>
+
+          {indiceNC.map((m) => (
+            <td
+              key={m.mes}
+              className="py-1 px-2 text-right font-semibold"
+            >
+              {m.totalInspecionado.toLocaleString("pt-BR")}
+            </td>
+          ))}
+        </tr>
+
+        <tr>
+          <td className="py-1 pr-2 font-semibold italic">
+            Índice NC
+          </td>
+
+          {indiceNC.map((m) => (
+            <td
+              key={m.mes}
+              className={`py-1 px-2 text-right font-semibold ${
+                m.totalInspecionado === 0
+                  ? "text-muted-foreground"
+                  : m.pct <= metaNC
+                    ? "text-success"
+                    : "text-destructive"
+              }`}
+            >
+              {m.totalInspecionado > 0
+                ? `${m.pct.toFixed(2)}%`
+                : "—"}
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</SectionCard>
 
       <SectionCard
         printable
