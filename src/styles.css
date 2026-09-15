@@ -1,4 +1,4 @@
-@import "tailwindcss" source(none);
+@import "tailwindcss";
 @source "../src";
 @import "tw-animate-css";
 
@@ -561,152 +561,126 @@ a[href*="lovable.dev"] {
   .kpi-mini { padding-inline: 0.45rem; }
 }
 
-/* ====== Impressão por card (A4 paisagem) — capa FORM-CORP-213 ====== */
+/* ====== IMPRESSÃO EXECUTIVA — QUALIHUB ====== */
 .print-only {
   display: none !important;
 }
 
-
 @media print {
-  /* @page margin:0 só vale se o usuário escolher "Sem margens" no diálogo.
-     Com "Padrão" o navegador aplica ~10mm; por isso o card abaixo é
-     dimensionado para 277x190mm (A4 paisagem menos 10mm de cada lado)
-     e ainda cabe em UMA única folha em qualquer configuração de margem. */
   @page {
     size: A4 landscape;
-    margin: 0;
+    margin: 8mm;
   }
 
   html,
   body {
-    background: #fff !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: #fff !important;
   }
 
-  /* Esconde tudo que não é o card alvo */
   html.printing-section body * {
     visibility: hidden !important;
   }
+
   html.printing-section [data-print-target],
   html.printing-section [data-print-target] * {
     visibility: visible !important;
   }
 
-  /* Mata animações, transições e estados de hover/tooltip durante a impressão
-     (evita tooltip congelada, botões sobre gráfico, animação cortada) */
   html.printing-section *,
   html.printing-section *::before,
   html.printing-section *::after {
     animation: none !important;
     transition: none !important;
+    text-shadow: none !important;
   }
+
   html.printing-section .recharts-tooltip-wrapper,
   html.printing-section .recharts-tooltip-cursor,
   html.printing-section [role="tooltip"],
-  html.printing-section [data-radix-popper-content-wrapper],
-  html.printing-section [data-state="open"][role="dialog"]:not([data-print-target] *) {
+  html.printing-section [data-radix-popper-content-wrapper] {
     display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
   }
+
+  html.printing-section [data-print-target] {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 180mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html.printing-section [data-print-target] > header,
   html.printing-section [data-print-target] .no-print,
   html.printing-section [data-print-target] button:not(.print-keep),
   html.printing-section [data-print-target] [role="button"]:not(.print-keep) {
     display: none !important;
   }
 
-
-  html.printing-section [data-print-target] {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 277mm !important;
-    height: 190mm !important;
-    max-width: 277mm !important;
-    max-height: 190mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background: #fff !important;
-    color: #0f172a !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  html.printing-section [data-print-target] > header {
-    display: none !important;
-  }
-  html.printing-section [data-print-target] .no-print {
-    display: none !important;
-  }
   html.printing-section [data-print-target] .print-only {
     display: flex !important;
   }
 
-  /* Cores legíveis em papel (não afeta chrome marcado abaixo) */
-  html.printing-section [data-print-target] * {
+  html.printing-section [data-print-target] .print-content {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 4mm 7mm 5mm !important;
+    background: #fff !important;
     color: #0f172a !important;
-    background-color: transparent !important;
-  }
-  html.printing-section [data-print-target] table,
-  html.printing-section [data-print-target] th,
-  html.printing-section [data-print-target] td {
-    border-color: #cbd5e1 !important;
-  }
-  html.printing-section [data-print-target] svg,
-  html.printing-section [data-print-target] svg * {
-    background-color: transparent !important;
-  }
-  html.printing-section [data-print-target] .recharts-surface * {
-    color: inherit !important;
-  }
-  /* Forçar contraste em textos SVG (Recharts usa fill, não color) */
-  html.printing-section [data-print-target] svg text,
-  html.printing-section [data-print-target] svg tspan,
-  html.printing-section [data-print-target] .recharts-text,
-  html.printing-section [data-print-target] .recharts-cartesian-axis-tick-value,
-  html.printing-section [data-print-target] .recharts-legend-item-text,
-  html.printing-section [data-print-target] .recharts-label,
-  html.printing-section [data-print-target] .recharts-label-list text {
-    fill: #0f172a !important;
-    color: #0f172a !important;
-  }
-  /* Eixos e grids mais escuros para impressão */
-  html.printing-section [data-print-target] .recharts-cartesian-axis line,
-  html.printing-section [data-print-target] .recharts-cartesian-axis-tick line {
-    stroke: #475569 !important;
-  }
-  html.printing-section [data-print-target] .recharts-cartesian-grid line {
-    stroke: #cbd5e1 !important;
-  }
-  /* Legendas (HTML) do Recharts */
-  html.printing-section [data-print-target] .recharts-default-legend,
-  html.printing-section [data-print-target] .recharts-legend-wrapper,
-  html.printing-section [data-print-target] .recharts-legend-item,
-  html.printing-section [data-print-target] .recharts-legend-item-text {
-    color: #0f172a !important;
-  }
-  /* Textos muted/foreground utilitários ficam legíveis em papel */
-  html.printing-section [data-print-target] .text-muted-foreground,
-  html.printing-section [data-print-target] .text-foreground,
-  html.printing-section [data-print-target] .text-white {
-    color: #1e293b !important;
   }
 
-  /* ===== Chrome do formulário (capa) ===== */
+  html.printing-section [data-print-target] .print-content * {
+    text-shadow: none !important;
+  }
+
+  html.printing-section [data-print-target] .print-content .text-muted-foreground {
+    color: #64748b !important;
+  }
+
+  html.printing-section [data-print-target] .print-content .text-foreground,
+  html.printing-section [data-print-target] .print-content .text-white {
+    color: #0f172a !important;
+  }
+
+  /* Converte os painéis dark em cartões claros no papel. */
+  html.printing-section [data-print-target] .print-content .rounded-xl,
+  html.printing-section [data-print-target] .print-content .rounded-2xl,
+  html.printing-section [data-print-target] .print-content .rounded-3xl,
+  html.printing-section [data-print-target] .print-content .card-premium,
+  html.printing-section [data-print-target] .print-content .section-premium {
+    background-color: #fff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  html.printing-section [data-print-target] .print-content .border,
+  html.printing-section [data-print-target] .print-content .border-border {
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Cabeçalho do formulário */
   html.printing-section [data-print-target] .print-chrome-bar {
     display: block !important;
     width: 100% !important;
-    height: 6mm !important;
-    background: var(--print-accent, #ffc20e) !important;
-    flex: 0 0 auto !important;
+    height: 5mm !important;
+    background: var(--print-accent, #111827) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -715,115 +689,200 @@ a[href*="lovable.dev"] {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 4mm 10mm 2mm 10mm !important;
-    flex: 0 0 auto !important;
+    padding: 4mm 8mm 2mm !important;
+    background: #fff !important;
   }
+
   html.printing-section [data-print-target] .print-header-left {
     display: flex !important;
     align-items: center !important;
     gap: 4mm !important;
   }
+
   html.printing-section [data-print-target] .print-header-icon {
-    width: 7mm !important;
-    height: 7mm !important;
-    color: #1f2937 !important;
+    width: 6mm !important;
+    height: 6mm !important;
+    color: #111827 !important;
   }
+
   html.printing-section [data-print-target] .print-header-title {
-    font-weight: 700 !important;
-    font-size: 13pt !important;
-    letter-spacing: 0.06em !important;
-    color: #1f2937 !important;
+    color: #111827 !important;
+    font-size: 12pt !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.05em !important;
   }
+
   html.printing-section [data-print-target] .print-header-datebox {
-    border: 1px solid #1f2937 !important;
     padding: 1.5mm 4mm !important;
-    font-size: 11pt !important;
-    color: #1f2937 !important;
-    border-radius: 1mm !important;
+    border: 0.3mm solid #64748b !important;
+    border-radius: 1.5mm !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    font-size: 9pt !important;
   }
+
   html.printing-section [data-print-target] .print-header-logo {
-    height: 12mm !important;
     width: auto !important;
+    height: 10mm !important;
     object-fit: contain !important;
   }
 
   html.printing-section [data-print-target] .print-titlebar {
     display: flex !important;
     flex-direction: column !important;
-    padding: 0 10mm 3mm 10mm !important;
-    border-bottom: 0.4mm solid #cbd5e1 !important;
-    flex: 0 0 auto !important;
+    padding: 1mm 8mm 3mm !important;
+    border-bottom: 0.3mm solid #cbd5e1 !important;
+    background: #fff !important;
   }
+
   html.printing-section [data-print-target] .print-doc-title {
-    font-size: 16pt !important;
-    font-weight: 700 !important;
-    color: #0f172a !important;
     margin: 0 !important;
+    color: #0f172a !important;
+    font-size: 15pt !important;
+    font-weight: 800 !important;
   }
+
   html.printing-section [data-print-target] .print-doc-period {
-    font-size: 10.5pt !important;
-    color: #334155 !important;
     margin-top: 1mm !important;
+    color: #475569 !important;
+    font-size: 8.5pt !important;
   }
 
-  /* Área do conteúdo do card preenche o resto */
-  html.printing-section [data-print-target] .print-content {
-    flex: 1 1 auto !important;
-    padding: 3mm 10mm !important;
-    overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-    min-height: 0 !important;
+  /* Reunião: seis KPIs na mesma linha no A4 paisagem. */
+  html.printing-section [data-print-target] .print-content .xl\:grid-cols-6 {
+    display: grid !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: 2.5mm !important;
   }
-  html.printing-section [data-print-target] .print-content > * {
-    min-height: 0 !important;
+
+  html.printing-section [data-print-target] .print-content .xl\:grid-cols-6 > * {
+    min-width: 0 !important;
+    min-height: 24mm !important;
+    padding: 3mm !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
-  /* Gráficos: altura fixa para garantir espaço da tabela abaixo */
-  html.printing-section [data-print-target] .print-content .recharts-responsive-container {
-    flex: 0 0 78mm !important;
+
+  /* Gráficos */
+  html.printing-section [data-print-target] .recharts-wrapper,
+  html.printing-section [data-print-target] .recharts-responsive-container,
+  html.printing-section [data-print-target] svg.recharts-surface {
+    background: #fff !important;
+  }
+
+  html.printing-section [data-print-target] .recharts-responsive-container {
     width: 100% !important;
-    height: 78mm !important;
-    min-height: 78mm !important;
+    height: 66mm !important;
+    min-height: 66mm !important;
   }
-  /* Blocos após o gráfico (tabelas, etc.): sempre visíveis */
-  html.printing-section [data-print-target] .print-content > div {
-    flex: 0 0 auto !important;
-    overflow: visible !important;
+
+  html.printing-section [data-print-target] svg text,
+  html.printing-section [data-print-target] svg tspan,
+  html.printing-section [data-print-target] .recharts-text,
+  html.printing-section [data-print-target] .recharts-cartesian-axis-tick-value,
+  html.printing-section [data-print-target] .recharts-label,
+  html.printing-section [data-print-target] .recharts-label-list text {
+    fill: #334155 !important;
+    color: #334155 !important;
   }
-  html.printing-section [data-print-target] .print-content > div + div {
-    margin-top: 2mm !important;
+
+  html.printing-section [data-print-target] .recharts-cartesian-axis line,
+  html.printing-section [data-print-target] .recharts-cartesian-axis-tick line {
+    stroke: #64748b !important;
   }
-  html.printing-section [data-print-target] .print-content table {
+
+  html.printing-section [data-print-target] .recharts-cartesian-grid line {
+    stroke: #e2e8f0 !important;
+  }
+
+  html.printing-section [data-print-target] .recharts-legend-item-text,
+  html.printing-section [data-print-target] .recharts-default-legend {
+    color: #334155 !important;
+  }
+
+  /* Tabelas */
+  html.printing-section [data-print-target] table {
+    width: 100% !important;
     table-layout: fixed !important;
-    font-size: 7pt !important;
-    line-height: 1.05 !important;
-    width: 100% !important;
-  }
-  html.printing-section [data-print-target] .print-content th,
-  html.printing-section [data-print-target] .print-content td {
-    padding: 0.6mm 0.8mm !important;
-    white-space: nowrap !important;
+    border-collapse: collapse !important;
+    font-size: 7.5pt !important;
   }
 
+  html.printing-section [data-print-target] th,
+  html.printing-section [data-print-target] td {
+    padding: 1mm 1.2mm !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Permite relatório multipágina sem cortar um card no meio. */
+  html.printing-section [data-print-target] .print-content > div,
+  html.printing-section [data-print-target] .print-content section,
+  html.printing-section [data-print-target] .print-content .grid > * {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  html.printing-section [data-print-target] .print-content .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 3mm !important;
+  }
+
+  /* QLD / QLDE */
+  html.printing-section [data-print-target].qld-print-summary .print-content {
+    padding: 4mm 8mm !important;
+  }
+
+  html.printing-section [data-print-target].qld-print-summary .blur-3xl {
+    display: none !important;
+  }
+
+  html.printing-section [data-print-target].qld-print-summary .lg\:grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4mm !important;
+  }
+
+  html.printing-section [data-print-target].qld-print-summary .lg\:grid-cols-4 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 3mm !important;
+  }
+
+  html.printing-section [data-print-target].qld-print-summary .border-warning\/30 {
+    border: 0.4mm solid #d97706 !important;
+  }
+
+  html.printing-section [data-print-target].qld-print-summary .border-destructive\/30 {
+    border: 0.4mm solid #dc2626 !important;
+  }
+
+  html.printing-section [data-print-target].qld-print-summary .lg\:grid-cols-4 > div {
+    min-height: 16mm !important;
+    padding: 3mm !important;
+    background: #fff !important;
+    border: 0.25mm solid #cbd5e1 !important;
+    border-radius: 2mm !important;
+  }
+
+  /* Rodapé */
   html.printing-section [data-print-target] .print-footer {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 1.2mm 10mm !important;
-    flex: 0 0 auto !important;
+    margin-top: 3mm !important;
+    padding: 1.5mm 8mm !important;
+    border-top: 0.25mm solid #cbd5e1 !important;
     background: #fff !important;
-    border-top: 0.2mm solid #e2e8f0 !important;
-    position: relative !important;
-    z-index: 2 !important;
   }
+
   html.printing-section [data-print-target] .print-footer-logo {
-    height: 6mm !important;
     width: auto !important;
+    height: 5mm !important;
     object-fit: contain !important;
   }
+
   html.printing-section [data-print-target] .print-footer-code {
-    font-size: 9pt !important;
     color: #475569 !important;
+    font-size: 7.5pt !important;
     letter-spacing: 0.02em !important;
   }
 }

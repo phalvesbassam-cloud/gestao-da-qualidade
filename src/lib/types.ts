@@ -112,10 +112,23 @@ export type FornecedorScore = {
   recorrencias: number;  // nº de ocorrências classificadas como recorrência
 };
 
+export type QLDQLDERow = {
+  item: string;
+  qtdeBloqueada: number;
+  valorBloqueado: number;
+  qtdeLivre: number;
+  valorLivre: number;
+  deposito: string;
+  acao: string;
+  check: string;
+  atencao: string;
+};
+
 export type DashboardData = {
   idf: IDFRow[];
   alerta: AlertaRow[];
   rnc: RNCRow[];
+  qldQlde: QLDQLDERow[];
   fornecedores: FornecedorScore[];
   divisoes: string[];
   fetchedAt: string;

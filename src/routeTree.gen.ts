@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as RncRouteImport } from './routes/rnc'
+import { Route as ReuniaoRouteImport } from './routes/reuniao'
+import { Route as QldQldeRouteImport } from './routes/qld-qlde'
 import { Route as InspecaoRouteImport } from './routes/inspecao'
 import { Route as IdfRouteImport } from './routes/idf'
 import { Route as AuditoriaRouteImport } from './routes/auditoria'
@@ -29,6 +31,16 @@ const TimelineRoute = TimelineRouteImport.update({
 const RncRoute = RncRouteImport.update({
   id: '/rnc',
   path: '/rnc',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReuniaoRoute = ReuniaoRouteImport.update({
+  id: '/reuniao',
+  path: '/reuniao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QldQldeRoute = QldQldeRouteImport.update({
+  id: '/qld-qlde',
+  path: '/qld-qlde',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InspecaoRoute = InspecaoRouteImport.update({
@@ -85,6 +97,8 @@ export interface FileRoutesByFullPath {
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
+  '/qld-qlde': typeof QldQldeRoute
+  '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
   '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
@@ -98,6 +112,8 @@ export interface FileRoutesByTo {
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
+  '/qld-qlde': typeof QldQldeRoute
+  '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
   '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
@@ -112,6 +128,8 @@ export interface FileRoutesById {
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
+  '/qld-qlde': typeof QldQldeRoute
+  '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
   '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
@@ -127,6 +145,8 @@ export interface FileRouteTypes {
     | '/auditoria'
     | '/idf'
     | '/inspecao'
+    | '/qld-qlde'
+    | '/reuniao'
     | '/rnc'
     | '/timeline'
     | '/fornecedor/$fornecedor'
@@ -140,6 +160,8 @@ export interface FileRouteTypes {
     | '/auditoria'
     | '/idf'
     | '/inspecao'
+    | '/qld-qlde'
+    | '/reuniao'
     | '/rnc'
     | '/timeline'
     | '/fornecedor/$fornecedor'
@@ -153,6 +175,8 @@ export interface FileRouteTypes {
     | '/auditoria'
     | '/idf'
     | '/inspecao'
+    | '/qld-qlde'
+    | '/reuniao'
     | '/rnc'
     | '/timeline'
     | '/fornecedor/$fornecedor'
@@ -167,6 +191,8 @@ export interface RootRouteChildren {
   AuditoriaRoute: typeof AuditoriaRoute
   IdfRoute: typeof IdfRoute
   InspecaoRoute: typeof InspecaoRoute
+  QldQldeRoute: typeof QldQldeRoute
+  ReuniaoRoute: typeof ReuniaoRoute
   RncRoute: typeof RncRoute
   TimelineRoute: typeof TimelineRoute
   FornecedorFornecedorRoute: typeof FornecedorFornecedorRoute
@@ -187,6 +213,20 @@ declare module '@tanstack/react-router' {
       path: '/rnc'
       fullPath: '/rnc'
       preLoaderRoute: typeof RncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reuniao': {
+      id: '/reuniao'
+      path: '/reuniao'
+      fullPath: '/reuniao'
+      preLoaderRoute: typeof ReuniaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qld-qlde': {
+      id: '/qld-qlde'
+      path: '/qld-qlde'
+      fullPath: '/qld-qlde'
+      preLoaderRoute: typeof QldQldeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inspecao': {
@@ -263,6 +303,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuditoriaRoute: AuditoriaRoute,
   IdfRoute: IdfRoute,
   InspecaoRoute: InspecaoRoute,
+  QldQldeRoute: QldQldeRoute,
+  ReuniaoRoute: ReuniaoRoute,
   RncRoute: RncRoute,
   TimelineRoute: TimelineRoute,
   FornecedorFornecedorRoute: FornecedorFornecedorRoute,

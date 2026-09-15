@@ -23,6 +23,7 @@ export function useDashboardFiltered() {
     rnc: [],
     fornecedores: [],
     divisoes: [],
+    qldQlde: [],
     fetchedAt: "",
   };
   const result = useFilteredData(data ?? empty);

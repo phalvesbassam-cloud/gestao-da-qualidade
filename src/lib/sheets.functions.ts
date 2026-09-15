@@ -130,6 +130,69 @@ function value(row: string[], idx: number) {
   return String(row[idx] ?? "").trim();
 }
 
+function numberBR(input: string) {
+  const raw = String(input ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/R\$/gi, "");
+
+  if (!raw) return 0;
+
+  if (raw.includes(",")) {
+    const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mapQLDQLDE(values: string[][]) {
+  if (!values?.length) return [];
+
+  const headers = values[0].map((h) =>
+    String(h ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+  );
+
+  const findColumn = (...names: string[]) =>
+    headers.findIndex((header) =>
+      names.some((name) => header === name || header.includes(name))
+    );
+
+  const idxItem = findColumn("item");
+  const idxQtdeBloqueada = findColumn("qtde. bloqueada", "qtde bloqueada");
+  const idxValorBloqueado = findColumn("valor bloqueado");
+  const idxQtdeLivre = findColumn("qtde. livre", "qtde livre");
+  const idxValorLivre = findColumn("valor livre");
+  const idxDeposito = findColumn("deposito");
+  const idxAcao = findColumn("acao");
+  const idxCheck = findColumn("check");
+  const idxAtencao = findColumn("atencao");
+
+  return values
+    .slice(1)
+    .map((row) => ({
+      item: idxItem >= 0 ? value(row, idxItem) : "",
+      qtdeBloqueada:
+        idxQtdeBloqueada >= 0 ? numberBR(value(row, idxQtdeBloqueada)) : 0,
+      valorBloqueado:
+        idxValorBloqueado >= 0 ? numberBR(value(row, idxValorBloqueado)) : 0,
+      qtdeLivre:
+        idxQtdeLivre >= 0 ? numberBR(value(row, idxQtdeLivre)) : 0,
+      valorLivre:
+        idxValorLivre >= 0 ? numberBR(value(row, idxValorLivre)) : 0,
+      deposito: idxDeposito >= 0 ? value(row, idxDeposito) : "",
+      acao: idxAcao >= 0 ? value(row, idxAcao) : "",
+      check: idxCheck >= 0 ? value(row, idxCheck) : "",
+      atencao: idxAtencao >= 0 ? value(row, idxAtencao) : "",
+    }))
+    .filter((row) => row.item || row.deposito);
+}
+
 async function loadConfig(): Promise<AppConfig> {
   return DEFAULT_CONFIG;
 }
@@ -172,17 +235,26 @@ async function loadOverrides(): Promise<Map<string, NotaOverride>> {
 
 export const getDashboardData = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardData> => {
-    const [cfg, overrides, idfValues, alertaValues, rncValues] = await Promise.all([
-      loadConfig(),
-      loadOverrides(),
-      fetchPublicSheetCached("IDF"),
-      fetchPublicSheetCached("ALERTA"),
-      fetchPublicSheetCached("RNC"),
-    ]);
+const [
+  cfg,
+  overrides,
+  idfValues,
+  alertaValues,
+  rncValues,
+  qldQldeValues,
+] = await Promise.all([
+  loadConfig(),
+  loadOverrides(),
+  fetchPublicSheetCached("IDF"),
+  fetchPublicSheetCached("ALERTA"),
+  fetchPublicSheetCached("RNC"),
+  fetchPublicSheetCached("QLD-QLDE"),
+]);
 
     const idf = mapIDF(idfValues ?? [], cfg, overrides);
     const alerta = mapAlerta(alertaValues ?? []);
     const rnc = mapRNC(rncValues ?? []);
+    const qldQlde = mapQLDQLDE(qldQldeValues ?? []);
     const fornecedores = scoreFornecedores(idf, alerta, rnc, cfg.irBuckets);
 
     const divisoes = Array.from(
@@ -195,7 +267,15 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
       .filter(Boolean)
       .sort();
 
-    return { idf, alerta, rnc, fornecedores, divisoes, fetchedAt: new Date().toISOString() };
+return {
+  idf,
+  alerta,
+  rnc,
+  qldQlde,
+  fornecedores,
+  divisoes,
+  fetchedAt: new Date().toISOString(),
+};
   },
 );
 

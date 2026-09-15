@@ -501,6 +501,11 @@ const DEFAULT_TV_TABS: TvTab[] = [
   { to: "/", label: "Quality Live", durationMs: 120_000, enabled: true },
   { to: "/idf", label: "Performance Global", durationMs: 150_000, enabled: true },
   { to: "/inspecao", label: "Inspeção", durationMs: 120_000, enabled: true },
+
+  // Novas telas executivas
+  { to: "/reuniao", label: "Reunião Mensal", durationMs: 150_000, enabled: true },
+  { to: "/qld-qlde", label: "QLD / QLDE", durationMs: 120_000, enabled: true },
+
   { to: "/alerta", label: "Alertas", durationMs: 60_000, enabled: true },
   { to: "/rnc", label: "RNC", durationMs: 90_000, enabled: true },
   { to: "/acoes", label: "Riscos e Ações", durationMs: 90_000, enabled: true },

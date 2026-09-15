@@ -25,6 +25,8 @@ import {
   Activity,
   ListTodo,
   Waypoints,
+  Presentation,
+  Boxes,
 } from "lucide-react";
 
 import {
@@ -59,6 +61,12 @@ import logo from "@/assets/frasle-logo.png";
 
 const NAV = [
   { to: "/", label: "Consolidado", icon: LayoutDashboard },
+
+  // Visões executivas
+  { to: "/reuniao", label: "Reunião Mensal", icon: Presentation },
+  { to: "/qld-qlde", label: "QLD / QLDE", icon: Boxes },
+
+  // Gestão da Qualidade
   { to: "/idf", label: "IDF", icon: ClipboardCheck },
   { to: "/alerta", label: "Alertas", icon: AlertTriangle },
   { to: "/rnc", label: "RNC", icon: FileWarning },
@@ -294,17 +302,19 @@ function PageTitle() {
   const loc = useLocation();
   const n = NAV.find((x) => x.to === loc.pathname);
   const isSupplier = loc.pathname.startsWith("/fornecedor/");
-  const subtitles: Record<string, string> = {
-    "/": "Visão executiva da qualidade de fornecedores",
-    "/idf": "Índice de desempenho de fornecedores",
-    "/alerta": "Alertas da qualidade",
-    "/rnc": "Não conformidades registradas",
-    "/inspecao": "Monitoramento operacional e desempenho da equipe",
-    "/acoes": "Pendências, prazos e prioridades da qualidade",
-    "/timeline": "Rastreabilidade de inspeções, alertas e RNC",
-    "/auditoria": "Trilha de auditoria",
-    "/admin": "Configurações do dashboard",
-  };
+const subtitles: Record<string, string> = {
+  "/": "Visão executiva da qualidade de fornecedores",
+  "/reuniao": "Resumo executivo para a reunião mensal da Qualidade",
+  "/qld-qlde": "Exposição financeira e materiais sob gestão da Qualidade",
+  "/idf": "Índice de desempenho de fornecedores",
+  "/alerta": "Alertas da qualidade",
+  "/rnc": "Não conformidades registradas",
+  "/inspecao": "Monitoramento operacional e desempenho da equipe",
+  "/acoes": "Pendências, prazos e prioridades da qualidade",
+  "/timeline": "Rastreabilidade de inspeções, alertas e RNC",
+  "/auditoria": "Trilha de auditoria",
+  "/admin": "Configurações do dashboard",
+};
   const labels: Record<string, string> = {
     "/inspecao": "Gestão de Inspeção",
   };
