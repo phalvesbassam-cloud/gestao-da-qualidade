@@ -16,6 +16,7 @@ import { Route as QldQldeRouteImport } from './routes/qld-qlde'
 import { Route as InspecaoRouteImport } from './routes/inspecao'
 import { Route as IdfRouteImport } from './routes/idf'
 import { Route as AuditoriaRouteImport } from './routes/auditoria'
+import { Route as ApresentacaoRouteImport } from './routes/apresentacao'
 import { Route as AlertaRouteImport } from './routes/alerta'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AcoesRouteImport } from './routes/acoes'
@@ -58,6 +59,11 @@ const AuditoriaRoute = AuditoriaRouteImport.update({
   path: '/auditoria',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApresentacaoRoute = ApresentacaoRouteImport.update({
+  id: '/apresentacao',
+  path: '/apresentacao',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AlertaRoute = AlertaRouteImport.update({
   id: '/alerta',
   path: '/alerta',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/acoes': typeof AcoesRoute
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
+  '/apresentacao': typeof ApresentacaoRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/acoes': typeof AcoesRoute
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
+  '/apresentacao': typeof ApresentacaoRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/acoes': typeof AcoesRoute
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
+  '/apresentacao': typeof ApresentacaoRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/acoes'
     | '/admin'
     | '/alerta'
+    | '/apresentacao'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/acoes'
     | '/admin'
     | '/alerta'
+    | '/apresentacao'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/acoes'
     | '/admin'
     | '/alerta'
+    | '/apresentacao'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   AcoesRoute: typeof AcoesRoute
   AdminRoute: typeof AdminRoute
   AlertaRoute: typeof AlertaRoute
+  ApresentacaoRoute: typeof ApresentacaoRoute
   AuditoriaRoute: typeof AuditoriaRoute
   IdfRoute: typeof IdfRoute
   InspecaoRoute: typeof InspecaoRoute
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditoriaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/apresentacao': {
+      id: '/apresentacao'
+      path: '/apresentacao'
+      fullPath: '/apresentacao'
+      preLoaderRoute: typeof ApresentacaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/alerta': {
       id: '/alerta'
       path: '/alerta'
@@ -300,6 +320,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcoesRoute: AcoesRoute,
   AdminRoute: AdminRoute,
   AlertaRoute: AlertaRoute,
+  ApresentacaoRoute: ApresentacaoRoute,
   AuditoriaRoute: AuditoriaRoute,
   IdfRoute: IdfRoute,
   InspecaoRoute: InspecaoRoute,

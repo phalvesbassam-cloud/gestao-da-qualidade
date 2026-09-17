@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CheckCircle2,
@@ -11,6 +11,8 @@ import {
 import { askQualiAI } from "@/lib/quali-ai.functions";
 import { Button } from "@/components/ui/button";
 import agenteia from "@/assets/agenteia.png";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -572,6 +574,16 @@ function QualityCopilotButton({
     string | null
   >(null);
 
+const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "end",
+  });
+}, [messages, isThinking]);
+
   const ask = async (
     value = question,
   ) => {
@@ -594,6 +606,14 @@ function QualityCopilotButton({
 
     const previousMessages =
       messages;
+
+const contextQuery = [
+  ...previousMessages
+    .filter((message) => message.role === "user")
+    .slice(-3)
+    .map((message) => message.content),
+  clean,
+].join(" ");
 
     setMessages(
       (current) => [
@@ -630,7 +650,7 @@ function QualityCopilotButton({
               buildQualiAIContext(
                 data,
                 operational,
-                clean,
+                contextQuery,
               ),
           },
         });
@@ -693,10 +713,10 @@ function QualityCopilotButton({
         </Button>
       </SheetTrigger>
 
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col p-0 sm:max-w-xl"
-      >
+<SheetContent
+  side="right"
+  className="flex w-full flex-col p-0 sm:max-w-2xl lg:max-w-3xl"
+>
         <SheetHeader className="border-b bg-gradient-to-br from-primary/10 via-background to-background p-6 text-left">
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
@@ -858,24 +878,125 @@ function QualityCopilotButton({
                         </div>
 
                         <div className="rounded-2xl rounded-tl-sm border bg-card p-4 shadow-sm">
-                          <p className="whitespace-pre-wrap text-sm leading-6">
-                            {
-                              message.content
-                            }
-                          </p>
+<div className="min-w-0 overflow-hidden text-sm leading-6">
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      h1: ({ children }) => (
+        <h1 className="mb-3 mt-4 text-lg font-bold first:mt-0">
+          {children}
+        </h1>
+      ),
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigator.clipboard.writeText(
-                                message.content,
-                              )
-                            }
-                            className="mt-3 text-[10px] text-muted-foreground transition-colors hover:text-primary"
-                          >
-                            Copiar
-                            resposta
-                          </button>
+      h2: ({ children }) => (
+        <h2 className="mb-2 mt-4 text-base font-bold first:mt-0">
+          {children}
+        </h2>
+      ),
+
+      h3: ({ children }) => (
+        <h3 className="mb-2 mt-4 text-sm font-bold text-primary first:mt-0">
+          {children}
+        </h3>
+      ),
+
+      p: ({ children }) => (
+        <p className="mb-3 leading-6 last:mb-0">
+          {children}
+        </p>
+      ),
+
+      strong: ({ children }) => (
+        <strong className="font-semibold text-foreground">
+          {children}
+        </strong>
+      ),
+
+      ul: ({ children }) => (
+        <ul className="mb-3 ml-5 list-disc space-y-1">
+          {children}
+        </ul>
+      ),
+
+      ol: ({ children }) => (
+        <ol className="mb-3 ml-5 list-decimal space-y-1">
+          {children}
+        </ol>
+      ),
+
+      li: ({ children }) => (
+        <li className="pl-1 leading-6">
+          {children}
+        </li>
+      ),
+
+      blockquote: ({ children }) => (
+        <blockquote className="my-3 border-l-2 border-primary pl-3 text-muted-foreground">
+          {children}
+        </blockquote>
+      ),
+
+table: ({ children }) => (
+  <div className="my-4 max-w-full overflow-x-auto rounded-xl border">
+    <table className="w-full table-auto border-collapse text-xs">
+      {children}
+    </table>
+  </div>
+),
+
+      thead: ({ children }) => (
+        <thead className="bg-muted/70">
+          {children}
+        </thead>
+      ),
+
+th: ({ children }) => (
+  <th className="border-b px-3 py-2 text-left font-semibold whitespace-normal break-words">
+    {children}
+  </th>
+),
+
+td: ({ children }) => (
+  <td className="border-b px-3 py-2 align-top whitespace-normal break-words">
+    {children}
+  </td>
+),
+
+      code: ({ children }) => (
+        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+          {children}
+        </code>
+      ),
+    }}
+  >
+    {message.content}
+  </ReactMarkdown>
+</div>
+
+<button
+  type="button"
+  onClick={async () => {
+    await navigator.clipboard.writeText(message.content);
+
+    setCopiedMessageId(message.id);
+
+    window.setTimeout(() => {
+      setCopiedMessageId((current) =>
+        current === message.id ? null : current,
+      );
+    }, 2000);
+  }}
+  className={cn(
+    "mt-3 text-[10px] transition-colors",
+    copiedMessageId === message.id
+      ? "font-medium text-emerald-500"
+      : "text-muted-foreground hover:text-primary",
+  )}
+>
+  {copiedMessageId === message.id
+    ? "Copiado ✓"
+    : "Copiar resposta"}
+</button>
                         </div>
                       </div>
                     </div>
@@ -908,6 +1029,7 @@ function QualityCopilotButton({
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
 

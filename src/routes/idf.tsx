@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PresentationSelectable } from "@/components/presentation-selectable";
 import { KpiCard, PpmCard, SectionCard, ClassBadge, StatusDot, DeltaBadge, EmptyState } from "@/components/dashboard-ui";
 import { IdfHelpButton } from "@/components/idf-help";
 import { useDashboardFiltered } from "@/hooks/use-data";
@@ -121,33 +122,198 @@ function IdfPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
-        <KpiCard label="Inspeções" value={rows.length}
-          delta={prev ? <DeltaBadge current={rows.length} previous={prev.insp} /> : undefined} />
-        <KpiCard label="IDF Médio" value={`${idfMedio}%`} tone="success"
-          delta={prev ? <DeltaBadge current={idfMedio} previous={prev.idfMed} /> : undefined} />
-        <PpmCard idf={rows} previous={previous?.idf} />
-        <KpiCard label="Pontos NC" value={totalNC.toFixed(0)} tone="warning" hint="Σ por reprovadas"
-          delta={prev ? <DeltaBadge current={totalNC} previous={prev.nc} invert /> : undefined} />
-        <KpiCard label="Fornecedores" value={score.length}
-          delta={prev ? <DeltaBadge current={score.length} previous={prev.forn} /> : undefined} />
-      </div>
+{/* KPIs PRINCIPAIS DO IDF */}
+<PresentationSelectable
+  item={{
+    id: "idf-kpis-principais",
+    title: "Indicadores principais do IDF",
+    subtitle: "Resumo de inspeções, IDF, PPM e não conformidades",
+    type: "kpi-group",
+    sourceRoute: "/idf",
+    data: {
+      inspecoes: rows.length,
+      idfMedio,
+      pontosNC: totalNC,
+      fornecedores: score.length,
+    },
+  }}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
+    <KpiCard
+      label="Inspeções"
+      value={rows.length}
+      delta={
+        prev ? (
+          <DeltaBadge
+            current={rows.length}
+            previous={prev.insp}
+          />
+        ) : undefined
+      }
+    />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
-        <KpiCard label="Índice IR Geral" value={irGeral} tone="warning" hint="Σ pontos IR" />
-        <KpiCard label="IR Médio" value={`${irMedio}%`} tone="success" hint="média % IR fornecedores" />
-        <KpiCard label="Total de Recorrências" value={totalRecorrencias} tone="warning" />
-        <KpiCard label="Maior IR" value={maiorIR.ir} tone="warning" hint={maiorIR.fornecedor} />
-        <KpiCard label="Mais Reincidente" value={topReinc[0]?.fornecedor || "—"} hint={topReinc[0] ? `IR ${topReinc[0].ir}` : "sem recorrências"} />
-      </div>
+    <KpiCard
+      label="IDF Médio"
+      value={`${idfMedio}%`}
+      tone="success"
+      delta={
+        prev ? (
+          <DeltaBadge
+            current={idfMedio}
+            previous={prev.idfMed}
+          />
+        ) : undefined
+      }
+    />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-stretch">
-        <KpiCard label="Aprovados depois" value={desfechoStats.aprovadosDepois} tone="success" hint="reprovados com nova aprovação" />
-        <KpiCard label="Reprovaram novamente" value={desfechoStats.reprovaramNovamente} tone="destructive" hint="mesmo fornecedor + item + problema" />
-        <KpiCard label="Sem nova entrada" value={desfechoStats.semRetorno} tone="warning" hint="sem nova inspeção posterior" />
-        <KpiCard label="Não analisado" value={desfechoStats.naoAnalisado} hint="sem classificação aplicável" />
-      </div>
+    <PpmCard
+      idf={rows}
+      previous={previous?.idf}
+    />
 
+    <KpiCard
+      label="Pontos NC"
+      value={totalNC.toFixed(0)}
+      tone="warning"
+      hint="Σ por reprovadas"
+      delta={
+        prev ? (
+          <DeltaBadge
+            current={totalNC}
+            previous={prev.nc}
+            invert
+          />
+        ) : undefined
+      }
+    />
+
+    <KpiCard
+      label="Fornecedores"
+      value={score.length}
+      delta={
+        prev ? (
+          <DeltaBadge
+            current={score.length}
+            previous={prev.forn}
+          />
+        ) : undefined
+      }
+    />
+  </div>
+</PresentationSelectable>
+
+
+{/* INDICADORES DE RECORRÊNCIA */}
+<PresentationSelectable
+  item={{
+    id: "idf-kpis-recorrencia",
+    title: "Indicadores de Recorrência",
+    subtitle: "Resumo do Índice de Recorrência dos fornecedores",
+    type: "kpi-group",
+    sourceRoute: "/idf",
+    data: {
+      indiceIRGeral: irGeral,
+      irMedio,
+      totalRecorrencias,
+      maiorIR: {
+        valor: maiorIR.ir,
+        fornecedor: maiorIR.fornecedor,
+      },
+      maisReincidente: topReinc[0]
+        ? {
+            fornecedor: topReinc[0].fornecedor,
+            ir: topReinc[0].ir,
+          }
+        : null,
+    },
+  }}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
+    <KpiCard
+      label="Índice IR Geral"
+      value={irGeral}
+      tone="warning"
+      hint="Σ pontos IR"
+    />
+
+    <KpiCard
+      label="IR Médio"
+      value={`${irMedio}%`}
+      tone="success"
+      hint="média % IR fornecedores"
+    />
+
+    <KpiCard
+      label="Total de Recorrências"
+      value={totalRecorrencias}
+      tone="warning"
+    />
+
+    <KpiCard
+      label="Maior IR"
+      value={maiorIR.ir}
+      tone="warning"
+      hint={maiorIR.fornecedor}
+    />
+
+    <KpiCard
+      label="Mais Reincidente"
+      value={topReinc[0]?.fornecedor || "—"}
+      hint={
+        topReinc[0]
+          ? `IR ${topReinc[0].ir}`
+          : "sem recorrências"
+      }
+    />
+  </div>
+</PresentationSelectable>
+
+
+{/* DESFECHO DAS REPROVAÇÕES */}
+<PresentationSelectable
+  item={{
+    id: "idf-kpis-desfecho",
+    title: "Desfecho das Reprovações",
+    subtitle: "Acompanhamento das inspeções originalmente reprovadas",
+    type: "kpi-group",
+    sourceRoute: "/idf",
+    data: {
+      aprovadosDepois: desfechoStats.aprovadosDepois,
+      reprovaramNovamente: desfechoStats.reprovaramNovamente,
+      semNovaEntrada: desfechoStats.semRetorno,
+      naoAnalisado: desfechoStats.naoAnalisado,
+    },
+  }}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-stretch">
+    <KpiCard
+      label="Aprovados depois"
+      value={desfechoStats.aprovadosDepois}
+      tone="success"
+      hint="reprovados com nova aprovação"
+    />
+
+    <KpiCard
+      label="Reprovaram novamente"
+      value={desfechoStats.reprovaramNovamente}
+      tone="destructive"
+      hint="mesmo fornecedor + item + problema"
+    />
+
+    <KpiCard
+      label="Sem nova entrada"
+      value={desfechoStats.semRetorno}
+      tone="warning"
+      hint="sem nova inspeção posterior"
+    />
+
+    <KpiCard
+      label="Não analisado"
+      value={desfechoStats.naoAnalisado}
+      hint="sem classificação aplicável"
+    />
+  </div>
+</PresentationSelectable>
       <SectionCard
         title="Ranking IDF — Top 10 Fornecedores"
         action={

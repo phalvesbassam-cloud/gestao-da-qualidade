@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { PresentationSelectable } from "@/components/presentation-selectable";
 import {
   AlertTriangle,
   Boxes,
@@ -169,7 +170,38 @@ function QLDQLDEPage() {
       </div>
 
       {/* RESUMO EXECUTIVO QLD / QLDE */}
-      <SectionCard
+      <PresentationSelectable
+  item={{
+    id: "qld-qlde-resumo-executivo",
+    title: "Resumo Executivo QLD / QLDE",
+    subtitle: "Visão consolidada dos depósitos 522 e 523",
+    type: "kpi-group",
+    sourceRoute: "/qld-qlde",
+    data: {
+      qld: {
+        deposito: "522",
+        status: "Em tratamento",
+        valor: indicadores.qldValor,
+        quantidade: indicadores.qldQuantidade,
+        skus: indicadores.qldSkus,
+      },
+      qlde: {
+        deposito: "523",
+        status: "Bloqueado",
+        valor: indicadores.qldeValor,
+        quantidade: indicadores.qldeQuantidade,
+        skus: indicadores.qldeSkus,
+      },
+      total: {
+        valor: indicadores.totalValor,
+        quantidade: indicadores.totalQuantidade,
+      },
+      itensComAtencao: indicadores.atencoes,
+      checksPendentes: indicadores.checksPendentes,
+    },
+  }}
+>
+<SectionCard
         title="Resumo Executivo QLD / QLDE"
         printable
         printTitle="QLD / QLDE — Exposição Financeira e Materiais"
@@ -298,6 +330,7 @@ className="overflow-visible qld-print-summary"
 
         </div>
       </SectionCard>
+    </PresentationSelectable>
 
 {/* ANÁLISE FINANCEIRA */}
 <SectionCard
@@ -308,6 +341,36 @@ className="overflow-visible qld-print-summary"
   <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.4fr]">
 
     {/* DISTRIBUIÇÃO QLD x QLDE */}
+<PresentationSelectable
+  item={{
+    id: "qld-qlde-distribuicao-financeira",
+    title: "Distribuição Financeira QLD × QLDE",
+    subtitle: "Participação do QLD e QLDE na exposição financeira total",
+    type: "chart",
+    sourceRoute: "/qld-qlde",
+    data: {
+      qld: {
+        deposito: "522",
+        valor: indicadores.qldValor,
+        quantidade: indicadores.qldQuantidade,
+        skus: indicadores.qldSkus,
+      },
+      qlde: {
+        deposito: "523",
+        valor: indicadores.qldeValor,
+        quantidade: indicadores.qldeQuantidade,
+        skus: indicadores.qldeSkus,
+      },
+      total: {
+        valor: indicadores.totalValor,
+        quantidade: indicadores.totalQuantidade,
+      },
+    },
+  }}
+>
+
+
+
     <div className="relative overflow-hidden rounded-2xl border border-border bg-background/40 p-5">
       <div className="mb-1 text-sm font-semibold">
         Distribuição financeira
@@ -406,6 +469,8 @@ className="overflow-visible qld-print-summary"
         </div>
       </div>
     </div>
+</PresentationSelectable>
+    
 
     {/* TOP EXPOSIÇÃO */}
     <div className="relative overflow-hidden rounded-2xl border border-border bg-background/40 p-5">

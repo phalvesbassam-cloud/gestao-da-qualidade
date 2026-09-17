@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { SectionCard } from "@/components/dashboard-ui";
+import { PresentationSelectable } from "@/components/presentation-selectable";
 import {
   Activity,
   BadgeCheck,
@@ -33,6 +34,7 @@ import {
 } from "recharts";
 
 import { useDashboard } from "@/hooks/use-data";
+import { useFilteredData, useFilters } from "@/hooks/use-dashboard";
 import { calcPPM } from "@/lib/idf-calc";
 
 export const Route = createFileRoute("/reuniao")({
@@ -173,6 +175,8 @@ function isApproved(row: any) {
 
 function ReuniaoMensalPage() {
   const data = useDashboard();
+  const { filters } = useFilters();
+const filtered = useFilteredData(data!);
 
   const [ncMode, setNcMode] = useState<"inspecoes" | "sku">("inspecoes");
 
@@ -187,8 +191,32 @@ function ReuniaoMensalPage() {
     );
   }
 
-  const idf = data.idf ?? [];
+  // IDF/Alertas/RNC respeitam os filtros globais do QualiHub.
+  // QLD/QLDE permanece como fotografia atual, pois não há data de referência
+  // definida no filtro global para essa base.
+  const idf = filtered.idf ?? [];
   const qldQlde = data.qldQlde ?? [];
+
+  const alertas = filtered.alerta?.length ?? 0;
+  const rncs = filtered.rnc?.length ?? 0;
+
+  const periodoLabel = useMemo(() => {
+    const formatDate = (value: string) => {
+      if (!value) return "";
+      const [year, month, day] = value.split("-").map(Number);
+      if (!year || !month || !day) return value;
+      return new Date(year, month - 1, day).toLocaleDateString("pt-BR");
+    };
+
+    if (filters.from && filters.to) {
+      return `${formatDate(filters.from)} a ${formatDate(filters.to)}`;
+    }
+    if (filters.from) return `A partir de ${formatDate(filters.from)}`;
+    if (filters.to) return `Até ${formatDate(filters.to)}`;
+    return "Todos os períodos";
+  }, [filters.from, filters.to]);
+
+  const hasDateFilter = Boolean(filters.from || filters.to);
 
   /* ======================================================
      INDICADORES PRINCIPAIS
@@ -242,8 +270,6 @@ function ReuniaoMensalPage() {
   const exposicaoTotal = valorQLD + valorQLDE;
   const quantidadeTotal = quantidadeQLD + quantidadeQLDE;
 
-  const alertas = data.alerta?.length ?? 0;
-  const rncs = data.rnc?.length ?? 0;
 
   /* ======================================================
      ANO DE REFERÊNCIA
@@ -257,6 +283,18 @@ function ReuniaoMensalPage() {
     anosDisponiveis.length > 0
       ? Math.max(...anosDisponiveis)
       : new Date().getFullYear();
+
+  const mesesVisiveis = useMemo(() => {
+    if (!hasDateFilter) return null;
+
+    const months = new Set<number>();
+    for (const row of idf) {
+      const date = getInspectionDate(row);
+      if (date && date.getFullYear() === anoReferencia) months.add(date.getMonth());
+    }
+
+    return months;
+  }, [idf, anoReferencia, hasDateFilter]);
 
   /* ======================================================
      EVOLUÇÃO PPM
@@ -280,8 +318,8 @@ function ReuniaoMensalPage() {
         mes,
         ppm: Number(resultado.ppm || 0),
       };
-    });
-  }, [idf, anoReferencia]);
+    }).filter((_, index) => !mesesVisiveis || mesesVisiveis.has(index));
+  }, [idf, anoReferencia, mesesVisiveis]);
 
   /* ======================================================
      EFICIÊNCIA MENSAL
@@ -319,8 +357,8 @@ function ReuniaoMensalPage() {
         inspecionadas: inspecionadasMes,
         eficiencia: Number(eficienciaMes.toFixed(1)),
       };
-    });
-  }, [idf, anoReferencia]);
+    }).filter((_, index) => !mesesVisiveis || mesesVisiveis.has(index));
+  }, [idf, anoReferencia, mesesVisiveis]);
 
   /* ======================================================
      ÍNDICE NC
@@ -371,8 +409,8 @@ function ReuniaoMensalPage() {
               )
             : 0,
       };
-    });
-  }, [idf, anoReferencia, ncMode]);
+    }).filter((_, index) => !mesesVisiveis || mesesVisiveis.has(index));
+  }, [idf, anoReferencia, ncMode, mesesVisiveis]);
 
   /* ======================================================
      PARETO
@@ -1099,6 +1137,79 @@ onClick={handlePrintReport}
 
         <div className="space-y-6 p-4">
           {/* KPIs */}
+          <PresentationSelectable
+            item={{
+              id: "reuniao-kpis-executivos",
+              title: "Indicadores Executivos",
+              subtitle: hasDateFilter ? `Período: ${periodoLabel}` : "Visão consolidada dos principais indicadores da Qualidade",
+              type: "kpi-group",
+              sourceRoute: "/reuniao",
+              data: {
+                layout: "executive-kpis",
+                periodo: periodoLabel,
+                anoReferencia,
+                cards: [
+                  {
+                    key: "ppm",
+                    label: "PPM",
+                    value: numero.format(ppm),
+                    rawValue: ppm,
+                    description: "Partes por milhão",
+                    tone: "red",
+                    icon: "gauge",
+                  },
+                  {
+                    key: "inspecoes",
+                    label: "Inspeções",
+                    value: numero.format(totalInspecoes),
+                    rawValue: totalInspecoes,
+                    description: "Registros recebidos",
+                    tone: "blue",
+                    icon: "package",
+                  },
+                  {
+                    key: "aprovados",
+                    label: "Aprovados",
+                    value: numero.format(aprovados),
+                    rawValue: aprovados,
+                    description: "Inspeções aprovadas",
+                    tone: "green",
+                    icon: "check",
+                  },
+                  {
+                    key: "reprovados",
+                    label: "Reprovados",
+                    value: numero.format(reprovados),
+                    rawValue: reprovados,
+                    description: "Não conformidades",
+                    tone: "red",
+                    icon: "x",
+                  },
+                  {
+                    key: "eficiencia",
+                    label: "Eficiência",
+                    value: `${eficiencia.toFixed(1)}%`,
+                    rawValue: eficiencia,
+                    description: `${numero.format(inspecionados)} inspecionadas`,
+                    tone: eficiencia >= 95 ? "green" : "amber",
+                    icon: "activity",
+                  },
+                  {
+                    key: "qld-qlde",
+                    label: "QLD + QLDE",
+                    value: moeda.format(exposicaoTotal),
+                    rawValue: exposicaoTotal,
+                    description: `${numero.format(quantidadeTotal)} peças`,
+                    tone: "purple",
+                    icon: "boxes",
+                  },
+                ],
+                condicionais,
+                alertas,
+                rncs,
+              },
+            }}
+          >
 
           <div>
             <SectionHeading
@@ -1158,10 +1269,21 @@ onClick={handlePrintReport}
             </div>
           </div>
 
-          {/* PPM + NC */}
+
+          </PresentationSelectable>          {/* PPM + NC */}
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <ChartPanel
+                        <PresentationSelectable
+              item={{
+                id: "reuniao-evolucao-ppm",
+                title: "Evolução Mensal do PPM",
+                subtitle: hasDateFilter ? `Período: ${periodoLabel}` : `Comportamento do PPM em ${anoReferencia}`,
+                type: "chart",
+                sourceRoute: "/reuniao",
+                data: { periodo: periodoLabel, anoReferencia, ppmAtual: ppm, serie: ppmMensal },
+              }}
+            >
+<ChartPanel
               title="Evolução mensal do PPM"
               subtitle={`Comportamento do indicador em ${anoReferencia}`}
               icon={<Gauge className="h-4 w-4 text-destructive" />}
@@ -1212,8 +1334,19 @@ onClick={handlePrintReport}
                 </LineChart>
               </ResponsiveContainer>
             </ChartPanel>
+          </PresentationSelectable>
 
-            <ChartPanel
+                        <PresentationSelectable
+              item={{
+                id: "reuniao-indice-nc",
+                title: "Índice de Não Conformidade",
+                subtitle: hasDateFilter ? `Período: ${periodoLabel} · ${ncMode === "inspecoes" ? "Inspeções" : "SKU único"}` : `Evolução mensal por ${ncMode === "inspecoes" ? "inspeções" : "SKU único"}`,
+                type: "chart",
+                sourceRoute: "/reuniao",
+                data: { periodo: periodoLabel, anoReferencia, modo: ncMode, meta: 2, serie: indiceNCMensal },
+              }}
+            >
+<ChartPanel
               title="Índice de Não Conformidade"
               subtitle="Meta máxima: 2%"
               icon={<CircleX className="h-4 w-4 text-destructive" />}
@@ -1302,11 +1435,22 @@ onClick={handlePrintReport}
                 </LineChart>
               </ResponsiveContainer>
             </ChartPanel>
+          </PresentationSelectable>
           </div>
 
           {/* EFICIÊNCIA */}
 
-          <ChartPanel
+                    <PresentationSelectable
+            item={{
+              id: "reuniao-eficiencia-mensal",
+              title: "Eficiência Mensal das Inspeções",
+              subtitle: hasDateFilter ? `Período: ${periodoLabel}` : "Recebidas × Inspecionadas × Eficiência",
+              type: "chart",
+              sourceRoute: "/reuniao",
+              data: { periodo: periodoLabel, anoReferencia, meta: 95, eficienciaConsolidada: eficiencia, serie: eficienciaMensal },
+            }}
+          >
+<ChartPanel
             title="Eficiência mensal das inspeções"
             subtitle="Recebidas × Inspecionadas × Eficiência"
             icon={<Activity className="h-4 w-4 text-success" />}
@@ -1392,10 +1536,21 @@ onClick={handlePrintReport}
               </ComposedChart>
             </ResponsiveContainer>
           </ChartPanel>
+          </PresentationSelectable>
 
           {/* PARETO */}
 
-          <ChartPanel
+                    <PresentationSelectable
+            item={{
+              id: "reuniao-pareto-nc",
+              title: "Pareto das Não Conformidades",
+              subtitle: "Principais causas e percentual acumulado",
+              type: "chart",
+              sourceRoute: "/reuniao",
+              data: { periodo: periodoLabel, serie: pareto, principalProblema: maiorProblema ?? null },
+            }}
+          >
+<ChartPanel
             title="Pareto das Não Conformidades"
             subtitle="Principais causas e percentual acumulado"
             icon={<TrendingDown className="h-4 w-4 text-warning" />}
@@ -1476,28 +1631,67 @@ onClick={handlePrintReport}
               </ResponsiveContainer>
             )}
           </ChartPanel>
+          </PresentationSelectable>
 
           {/* RANKING */}
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <RankingPanel
+                        <PresentationSelectable
+              item={{
+                id: "reuniao-ranking-melhores",
+                title: "Top 5 — Melhor Desempenho",
+                subtitle: "Fornecedores com menor índice de NC",
+                type: "ranking",
+                sourceRoute: "/reuniao",
+                data: { periodo: periodoLabel, fornecedores: melhores },
+              }}
+            >
+<RankingPanel
               title="Top 5 — Melhor desempenho"
               subtitle="Fornecedores com menor índice de NC"
               icon={<Trophy className="h-4 w-4 text-success" />}
               items={melhores}
               mode="best"
             />
+          </PresentationSelectable>
 
-            <RankingPanel
+                        <PresentationSelectable
+              item={{
+                id: "reuniao-ranking-criticos",
+                title: "Top 5 — Pontos de Atenção",
+                subtitle: "Fornecedores com maior índice de NC",
+                type: "ranking",
+                sourceRoute: "/reuniao",
+                data: { periodo: periodoLabel, fornecedores: criticos },
+              }}
+            >
+<RankingPanel
               title="Top 5 — Pontos de atenção"
               subtitle="Fornecedores com maior índice de NC"
               icon={<TrendingDown className="h-4 w-4 text-destructive" />}
               items={criticos}
               mode="critical"
             />
+          </PresentationSelectable>
           </div>
 
           {/* QLD / QLDE */}
+          <PresentationSelectable
+            item={{
+              id: "reuniao-qld-qlde",
+              title: "Exposição QLD / QLDE",
+              subtitle: "Visão financeira e operacional dos depósitos 522 e 523",
+              type: "kpi-group",
+              sourceRoute: "/reuniao",
+              data: {
+                periodoIndicadores: periodoLabel,
+                escopoQLDQLDE: "Fotografia atual; não filtrada pelo período do IDF",
+                qld: { deposito: "522", valor: valorQLD, quantidade: quantidadeQLD, skus: qld.length },
+                qlde: { deposito: "523", valor: valorQLDE, quantidade: quantidadeQLDE, skus: qlde.length },
+                total: { valor: exposicaoTotal, quantidade: quantidadeTotal },
+              },
+            }}
+          >
 
           <div>
             <SectionHeading
@@ -1599,9 +1793,25 @@ onClick={handlePrintReport}
             </div>
           </div>
 
-          {/* QUALIAI */}
 
-          <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-card p-5">
+          </PresentationSelectable>          {/* QUALIAI */}
+
+                    <PresentationSelectable
+            item={{
+              id: "reuniao-leitura-qualiai",
+              title: "Leitura Executiva QualiAI",
+              subtitle: "Síntese automática dos indicadores para apoio à reunião",
+              type: "ai-summary",
+              sourceRoute: "/reuniao",
+              data: {
+                pontos: leituraExecutiva,
+                periodo: periodoLabel,
+                anoReferencia,
+                indicadores: { ppm, totalInspecoes, aprovados, reprovados, eficiencia, exposicaoTotal, quantidadeTotal, alertas, rncs },
+              },
+            }}
+          >
+<div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-card p-5">
             <div className="pointer-events-none absolute -right-12 -top-12 h-52 w-52 rounded-full bg-primary/15 blur-3xl" />
 
             <div className="relative">
@@ -1643,6 +1853,7 @@ onClick={handlePrintReport}
               </div>
             </div>
           </div>
+          </PresentationSelectable>
         </div>
       </div>
 

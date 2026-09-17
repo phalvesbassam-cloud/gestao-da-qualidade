@@ -1,6 +1,10 @@
 import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  PresentationProvider,
+  usePresentation,
+} from "@/contexts/presentation-context";
 import { useCallback, useMemo, useState } from "react";
 import {
   LayoutDashboard,
@@ -102,7 +106,9 @@ function countActiveFilters(filters: Filters): number {
 export function AppShell() {
   return (
     <FiltersProvider>
-      <Shell />
+      <PresentationProvider>
+        <Shell />
+      </PresentationProvider>
     </FiltersProvider>
   );
 }
@@ -118,8 +124,23 @@ function Shell() {
   const router = useRouter();
   const location = useLocation();
   const { filters } = useFilters();
-  const { dark, mounted, toggle: toggleTheme } = useTheme();
-  const [hover, setHover] = useState(false);
+const {
+  selecting,
+  selectedItems,
+  startSelection,
+  cancelSelection,
+  finishSelection,
+} = usePresentation();
+
+const handleFinishSelection = useCallback(() => {
+  finishSelection();
+
+  router.navigate({
+    to: "/apresentacao",
+  });
+}, [finishSelection, router]);
+
+const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHover] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = countActiveFilters(filters);
 
@@ -219,6 +240,21 @@ function Shell() {
             <PageTitle />
             <div className="flex-1" />
             <div className="tv-hide flex shrink-0 items-center gap-1 sm:gap-2">
+              {!selecting && (
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={startSelection}
+    className="gap-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+    title="Criar apresentação"
+  >
+    <Presentation className="h-4 w-4" />
+
+    <span className="hidden lg:inline">
+      Criar apresentação
+    </span>
+  </Button>
+)}
               <QualityHeaderIntelligence isFetching={q.isFetching} fetchedAt={q.data?.fetchedAt} />
               <Button
                 size="sm"
@@ -273,6 +309,48 @@ function Shell() {
             )}
           </div>
           <FilterBar data={q.data} open={filtersOpen} onClose={() => setFiltersOpen(false)} />
+        
+{selecting && (
+  <div className="tv-hide border-t border-primary/20 bg-primary/5">
+    <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 md:px-6">
+      <div className="flex items-center gap-2">
+        <Presentation className="h-4 w-4 text-primary" />
+
+        <span className="text-sm font-semibold">
+          Selecionando conteúdo para apresentação
+        </span>
+      </div>
+
+      <Badge variant="secondary">
+        {selectedItems.length}{" "}
+        {selectedItems.length === 1 ? "item" : "itens"}
+      </Badge>
+
+      <span className="hidden text-xs text-muted-foreground md:inline">
+        Navegue pelo QualiHub e escolha os conteúdos da reunião.
+      </span>
+
+      <div className="flex-1" />
+
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={cancelSelection}
+      >
+        Cancelar
+      </Button>
+
+      <Button
+        size="sm"
+        onClick={handleFinishSelection}
+        disabled={selectedItems.length === 0}
+      >
+        Concluir seleção
+      </Button>
+    </div>
+  </div>
+)}
+
         </header>
 
         <main

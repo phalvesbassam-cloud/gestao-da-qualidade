@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { FileWarning, CheckCircle2, Clock } from "lucide-react";
 import { KpiCard, PpmCard, SectionCard, DeltaBadge, EmptyState } from "@/components/dashboard-ui";
 import { Badge } from "@/components/ui/badge";
+import { PresentationSelectable } from "@/components/presentation-selectable";
 import { useDashboardFiltered } from "@/hooks/use-data";
 import { EvidenciaButton } from "@/components/rnc-evidencia-modal";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend } from "recharts";
@@ -52,75 +53,254 @@ function RncPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiCard label="Total RNCs" value={rows.length} icon={<FileWarning className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={rows.length} previous={prev.total} invert /> : undefined} />
-        <KpiCard label="Concluídas" value={concluidos} tone="success" icon={<CheckCircle2 className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={concluidos} previous={prev.concluidos} /> : undefined} />
-        <KpiCard label="Em andamento" value={emAndamento} tone="warning" icon={<Clock className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={emAndamento} previous={prev.emAndamento} invert /> : undefined} />
-        <KpiCard label="Eficácia %" value={rows.length ? `${eficacia}%` : "—"} tone="info"
-          delta={prev ? <DeltaBadge current={eficacia} previous={prev.eficacia} /> : undefined} />
-        <PpmCard idf={filtered.idf} previous={previous?.idf} />
-      </div>
+
+      {/* KPIs */}
+      <PresentationSelectable
+        item={{
+          id: "rnc-kpis-principais",
+          title: "Indicadores de RNC",
+          subtitle: "Resumo dos Relatórios de Não Conformidade",
+          type: "kpi-group",
+          sourceRoute: "/rnc",
+          data: {
+            total: rows.length,
+            concluidos,
+            emAndamento,
+            eficacia,
+          },
+        }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <KpiCard
+            label="Total RNCs"
+            value={rows.length}
+            icon={<FileWarning className="h-4 w-4" />}
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={rows.length}
+                  previous={prev.total}
+                  invert
+                />
+              ) : undefined
+            }
+          />
+
+          <KpiCard
+            label="Concluídas"
+            value={concluidos}
+            tone="success"
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={concluidos}
+                  previous={prev.concluidos}
+                />
+              ) : undefined
+            }
+          />
+
+          <KpiCard
+            label="Em andamento"
+            value={emAndamento}
+            tone="warning"
+            icon={<Clock className="h-4 w-4" />}
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={emAndamento}
+                  previous={prev.emAndamento}
+                  invert
+                />
+              ) : undefined
+            }
+          />
+
+          <KpiCard
+            label="Eficácia %"
+            value={rows.length ? `${eficacia}%` : "—"}
+            tone="info"
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={eficacia}
+                  previous={prev.eficacia}
+                />
+              ) : undefined
+            }
+          />
+
+          <PpmCard
+            idf={filtered.idf}
+            previous={previous?.idf}
+          />
+        </div>
+      </PresentationSelectable>
 
 
-      <SectionCard title="Distribuição por Status">
-        {porStatus.length === 0 ? <EmptyState /> : <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie data={porStatus} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>
-              {porStatus.map((e, i) => <Cell key={i} fill={e.color} />)}
-            </Pie>
-            <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-          </PieChart>
-        </ResponsiveContainer>}
-      </SectionCard>
+      {/* DISTRIBUIÇÃO POR STATUS */}
+      <PresentationSelectable
+        item={{
+          id: "rnc-distribuicao-status",
+          title: "Distribuição das RNCs por Status",
+          subtitle: "Distribuição dos Relatórios de Não Conformidade por situação",
+          type: "chart",
+          sourceRoute: "/rnc",
+          data: {
+            total: rows.length,
+            concluidos,
+            emAndamento,
+            eficacia,
+            status: porStatus,
+          },
+        }}
+      >
+        <SectionCard title="Distribuição por Status">
+          {porStatus.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={porStatus}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={2}
+                >
+                  {porStatus.map((e, i) => (
+                    <Cell
+                      key={i}
+                      fill={e.color}
+                    />
+                  ))}
+                </Pie>
 
-      <SectionCard title={`Lista de RNCs (${rows.length})`}>
-        {rows.length === 0 ? <EmptyState /> : <div className="overflow-x-auto max-h-[560px]">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-card">
-              <tr className="text-left uppercase tracking-wider text-muted-foreground border-b">
-                <th className="py-2 pr-2">RNC</th>
-                <th className="py-2 pr-2">Data</th>
-                <th className="py-2 pr-2">Item</th>
-                <th className="py-2 pr-2">Divisão</th>
-                <th className="py-2 pr-2">Cliente/Setor</th>
-                <th className="py-2 pr-2">Assunto</th>
-                <th className="py-2 pr-2">Status Análise</th>
-                <th className="py-2 pr-2">Prazo Ações</th>
-                <th className="py-2 pr-2">Status RNC</th>
-                <th className="py-2 pr-2 text-center">Evid.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-b last:border-0 hover:bg-muted/40">
-                  <td className="py-1.5 pr-2 font-medium">{r.rnc}</td>
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{r.data}</td>
-                  <td className="py-1.5 pr-2">{r.item}</td>
-                  <td className="py-1.5 pr-2">{r.divisao}</td>
-                  <td className="py-1.5 pr-2">{r.cliente}</td>
-                  <td className="py-1.5 pr-2 max-w-[240px] truncate">{r.assunto}</td>
-                  <td className="py-1.5 pr-2">{r.statusAnalise || "—"}</td>
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{r.prazoAcoes || "—"}</td>
-                  <td className="py-1.5 pr-2">
-                    {upper(r.statusRNC).includes("CONCLU") ? (
-                      <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15">Concluída</Badge>
-                    ) : (
-                      <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">{r.statusRNC || "Em andamento"}</Badge>
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-2 text-center">
-                    <EvidenciaButton rncId={r.rnc} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>}
-      </SectionCard>
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+
+                <Legend
+                  wrapperStyle={{
+                    fontSize: 12,
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
+      </PresentationSelectable>
+
+
+      {/* LISTA DE RNCS */}
+      <PresentationSelectable
+        item={{
+          id: "rnc-lista",
+          title: "Lista de RNCs",
+          subtitle: `${rows.length} Relatórios de Não Conformidade no período selecionado`,
+          type: "table",
+          sourceRoute: "/rnc",
+          data: {
+            total: rows.length,
+            concluidos,
+            emAndamento,
+            eficacia,
+            rows,
+          },
+        }}
+      >
+        <SectionCard title={`Lista de RNCs (${rows.length})`}>
+          {rows.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="overflow-x-auto max-h-[560px]">
+              <table className="w-full text-xs">
+
+                <thead className="sticky top-0 bg-card">
+                  <tr className="text-left uppercase tracking-wider text-muted-foreground border-b">
+                    <th className="py-2 pr-2">RNC</th>
+                    <th className="py-2 pr-2">Data</th>
+                    <th className="py-2 pr-2">Item</th>
+                    <th className="py-2 pr-2">Divisão</th>
+                    <th className="py-2 pr-2">Cliente/Setor</th>
+                    <th className="py-2 pr-2">Assunto</th>
+                    <th className="py-2 pr-2">Status Análise</th>
+                    <th className="py-2 pr-2">Prazo Ações</th>
+                    <th className="py-2 pr-2">Status RNC</th>
+                    <th className="py-2 pr-2 text-center">Evid.</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr
+                      key={i}
+                      className="border-b last:border-0 hover:bg-muted/40"
+                    >
+                      <td className="py-1.5 pr-2 font-medium">
+                        {r.rnc}
+                      </td>
+
+                      <td className="py-1.5 pr-2 whitespace-nowrap">
+                        {r.data}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.item}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.divisao}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.cliente}
+                      </td>
+
+                      <td className="py-1.5 pr-2 max-w-[240px] truncate">
+                        {r.assunto}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.statusAnalise || "—"}
+                      </td>
+
+                      <td className="py-1.5 pr-2 whitespace-nowrap">
+                        {r.prazoAcoes || "—"}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {upper(r.statusRNC).includes("CONCLU") ? (
+                          <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15">
+                            Concluída
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">
+                            {r.statusRNC || "Em andamento"}
+                          </Badge>
+                        )}
+                      </td>
+
+                      <td className="py-1.5 pr-2 text-center">
+                        <EvidenciaButton rncId={r.rnc} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      </PresentationSelectable>
+
     </div>
   );
 }

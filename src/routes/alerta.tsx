@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { AlertTriangle, CheckCircle2, Send } from "lucide-react";
 import { KpiCard, PpmCard, SectionCard, DeltaBadge, EmptyState } from "@/components/dashboard-ui";
 import { Badge } from "@/components/ui/badge";
+import { PresentationSelectable } from "@/components/presentation-selectable";
 import { useDashboardFiltered } from "@/hooks/use-data";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -48,80 +49,257 @@ function AlertaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiCard label="Total de Alertas" value={rows.length} icon={<AlertTriangle className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={rows.length} previous={prev.total} invert /> : undefined} />
-        <KpiCard label="Finalizados" value={finalizados} tone="success" icon={<CheckCircle2 className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={finalizados} previous={prev.finalizados} /> : undefined} />
-        <KpiCard label="Pendentes" value={pendentes} tone="destructive"
-          delta={prev ? <DeltaBadge current={pendentes} previous={prev.pendentes} invert /> : undefined} />
-        <KpiCard label="Falta enviar" value={aEnviar} tone="warning" icon={<Send className="h-4 w-4" />}
-          delta={prev ? <DeltaBadge current={aEnviar} previous={prev.aEnviar} invert /> : undefined} />
-        <PpmCard idf={filtered.idf} previous={previous?.idf} />
-      </div>
+
+      <PresentationSelectable
+        item={{
+          id: "alertas-kpis-principais",
+          title: "Indicadores de Alertas",
+          subtitle: "Resumo dos Alertas de Qualidade",
+          type: "kpi-group",
+          sourceRoute: "/alerta",
+          data: {
+            total: rows.length,
+            finalizados,
+            pendentes,
+            faltaEnviar: aEnviar,
+          },
+        }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <KpiCard
+            label="Total de Alertas"
+            value={rows.length}
+            icon={<AlertTriangle className="h-4 w-4" />}
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={rows.length}
+                  previous={prev.total}
+                  invert
+                />
+              ) : undefined
+            }
+          />
+
+          <KpiCard
+            label="Finalizados"
+            value={finalizados}
+            tone="success"
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={finalizados}
+                  previous={prev.finalizados}
+                />
+              ) : undefined
+            }
+          />
+
+          <KpiCard
+            label="Pendentes"
+            value={pendentes}
+            tone="destructive"
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={pendentes}
+                  previous={prev.pendentes}
+                  invert
+                />
+              ) : undefined
+            }
+          />
+
+          <KpiCard
+            label="Falta enviar"
+            value={aEnviar}
+            tone="warning"
+            icon={<Send className="h-4 w-4" />}
+            delta={
+              prev ? (
+                <DeltaBadge
+                  current={aEnviar}
+                  previous={prev.aEnviar}
+                  invert
+                />
+              ) : undefined
+            }
+          />
+
+          <PpmCard
+            idf={filtered.idf}
+            previous={previous?.idf}
+          />
+        </div>
+      </PresentationSelectable>
 
 
-      <SectionCard title="Top 10 fornecedores com mais alertas">
-        {porFornecedor.length === 0 ? <EmptyState /> : <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={porFornecedor}>
-            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-            <XAxis dataKey="fornecedor" stroke="var(--color-muted-foreground)" fontSize={11} angle={-20} textAnchor="end" height={60} />
-            <YAxis stroke="var(--color-muted-foreground)" fontSize={12} />
-            <Tooltip contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="total" name="Alertas" fill="var(--color-chart-alert)" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>}
-      </SectionCard>
+      <PresentationSelectable
+        item={{
+          id: "alertas-top-fornecedores",
+          title: "Top 10 Fornecedores com Mais Alertas",
+          subtitle: "Fornecedores com maior quantidade de Alertas de Qualidade",
+          type: "chart",
+          sourceRoute: "/alerta",
+          data: {
+            totalAlertas: rows.length,
+            fornecedores: porFornecedor,
+          },
+        }}
+      >
+        <SectionCard title="Top 10 fornecedores com mais alertas">
+          {porFornecedor.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={porFornecedor}>
+                <CartesianGrid
+                  stroke="var(--color-border)"
+                  strokeDasharray="3 3"
+                />
 
-      <SectionCard title={`Lista de Alertas (${rows.length})`}>
-        {rows.length === 0 ? <EmptyState /> : <div className="overflow-x-auto max-h-[560px]">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-card">
-              <tr className="text-left uppercase tracking-wider text-muted-foreground border-b">
-                <th className="py-2 pr-2">Nº AQ</th>
-                <th className="py-2 pr-2">Data</th>
-                <th className="py-2 pr-2">Divisão</th>
-                <th className="py-2 pr-2">Item</th>
-                <th className="py-2 pr-2 text-right">Qtde</th>
-                <th className="py-2 pr-2">Fornecedor</th>
-                <th className="py-2 pr-2">Problema</th>
-                <th className="py-2 pr-2">Inspetor</th>
-                <th className="py-2 pr-2">Envio</th>
-                <th className="py-2 pr-2 text-center">Finaliz.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-b last:border-0 hover:bg-muted/40">
-                  <td className="py-1.5 pr-2 font-medium">{r.numero}</td>
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{r.dataCriacao}</td>
-                  <td className="py-1.5 pr-2">{r.divisao}</td>
-                  <td className="py-1.5 pr-2">{r.item}</td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums">{r.qtde}</td>
-                  <td className="py-1.5 pr-2 font-medium">{r.fornecedor}</td>
-                  <td className="py-1.5 pr-2">{r.problema}</td>
-                  <td className="py-1.5 pr-2">{r.inspetor}</td>
-                  <td className="py-1.5 pr-2">
-                    {upper(r.statusEnvio).includes("FALTA") ? (
-                      <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">Falta enviar</Badge>
-                    ) : (
-                      <Badge variant="secondary">{r.statusEnvio || "—"}</Badge>
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-2 text-center">
-                    {r.finalizado ? (
-                      <CheckCircle2 className="h-4 w-4 text-success inline" />
-                    ) : (
-                      <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>}
-      </SectionCard>
+                <XAxis
+                  dataKey="fornecedor"
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={11}
+                  angle={-20}
+                  textAnchor="end"
+                  height={60}
+                />
+
+                <YAxis
+                  stroke="var(--color-muted-foreground)"
+                  fontSize={12}
+                />
+
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+
+                <Bar
+                  dataKey="total"
+                  name="Alertas"
+                  fill="var(--color-chart-alert)"
+                  radius={[6, 6, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
+      </PresentationSelectable>
+
+
+      <PresentationSelectable
+        item={{
+          id: "alertas-lista",
+          title: "Lista de Alertas",
+          subtitle: `${rows.length} Alertas de Qualidade no período selecionado`,
+          type: "table",
+          sourceRoute: "/alerta",
+          data: {
+            total: rows.length,
+            finalizados,
+            pendentes,
+            faltaEnviar: aEnviar,
+            rows,
+          },
+        }}
+      >
+        <SectionCard title={`Lista de Alertas (${rows.length})`}>
+          {rows.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="overflow-x-auto max-h-[560px]">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="text-left uppercase tracking-wider text-muted-foreground border-b">
+                    <th className="py-2 pr-2">Nº AQ</th>
+                    <th className="py-2 pr-2">Data</th>
+                    <th className="py-2 pr-2">Divisão</th>
+                    <th className="py-2 pr-2">Item</th>
+                    <th className="py-2 pr-2 text-right">Qtde</th>
+                    <th className="py-2 pr-2">Fornecedor</th>
+                    <th className="py-2 pr-2">Problema</th>
+                    <th className="py-2 pr-2">Inspetor</th>
+                    <th className="py-2 pr-2">Envio</th>
+                    <th className="py-2 pr-2 text-center">Finaliz.</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr
+                      key={i}
+                      className="border-b last:border-0 hover:bg-muted/40"
+                    >
+                      <td className="py-1.5 pr-2 font-medium">
+                        {r.numero}
+                      </td>
+
+                      <td className="py-1.5 pr-2 whitespace-nowrap">
+                        {r.dataCriacao}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.divisao}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.item}
+                      </td>
+
+                      <td className="py-1.5 pr-2 text-right tabular-nums">
+                        {r.qtde}
+                      </td>
+
+                      <td className="py-1.5 pr-2 font-medium">
+                        {r.fornecedor}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.problema}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {r.inspetor}
+                      </td>
+
+                      <td className="py-1.5 pr-2">
+                        {upper(r.statusEnvio).includes("FALTA") ? (
+                          <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">
+                            Falta enviar
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">
+                            {r.statusEnvio || "—"}
+                          </Badge>
+                        )}
+                      </td>
+
+                      <td className="py-1.5 pr-2 text-center">
+                        {r.finalizado ? (
+                          <CheckCircle2 className="h-4 w-4 text-success inline" />
+                        ) : (
+                          <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      </PresentationSelectable>
+
     </div>
   );
 }

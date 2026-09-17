@@ -34,6 +34,7 @@ import { KpiCard, SectionCard, EmptyState } from "@/components/dashboard-ui";
 import { useDashboardFiltered } from "@/hooks/use-data";
 import type { IDFRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PresentationSelectable } from "@/components/presentation-selectable";
 
 export const Route = createFileRoute("/inspecao")({
   head: () => ({
@@ -393,6 +394,27 @@ function InspecaoPage() {
         </div>
       )}
 
+      <PresentationSelectable
+        item={{
+          id: "inspecao-kpis-principais",
+          title: "Indicadores principais de Inspeção",
+          subtitle: "Recebidas, inspecionadas, eficiência, pendências, aprovação e reprovação",
+          type: "kpi-group",
+          sourceRoute: "/inspecao",
+          data: {
+            recebidas: efficiency.recebidas,
+            inspecionadas: efficiency.inspecionadas,
+            eficienciaOperacional,
+            pendentes,
+            totalInspecoes: totalInsp,
+            totalAprovados,
+            totalReprovados,
+            taxaAprovacao: taxaApr,
+            taxaReprovacao: taxaRep,
+            inspetoresSelecionados: [...selected],
+          },
+        }}
+      >
       {/* KPIs principais */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard
@@ -444,7 +466,26 @@ function InspecaoPage() {
           icon={<XCircle className="h-4 w-4" />}
         />
       </div>
+      </PresentationSelectable>
 
+      <PresentationSelectable
+        item={{
+          id: "inspecao-destaques-meta",
+          title: "Destaques e Meta da Equipe",
+          subtitle: "Melhor inspetor, menor desempenho e meta da equipe",
+          type: "kpi-group",
+          sourceRoute: "/inspecao",
+          data: {
+            melhor,
+            pior,
+            metaPct: META_PCT,
+            eficienciaEquipe,
+            acimaMeta,
+            totalAvaliados,
+            inspetoresSelecionados: [...selected],
+          },
+        }}
+      >
       {/* Destaques + meta */}
       <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
         <div className="card-premium rounded-xl border bg-card p-4">
@@ -486,7 +527,20 @@ function InspecaoPage() {
           <div className="mt-2 text-sm font-semibold">{metaStatus.label}</div>
         </div>
       </div>
+      </PresentationSelectable>
 
+      <PresentationSelectable
+        item={{
+          id: "inspecao-insights-automaticos",
+          title: "Insights automáticos — Gestão de Inspeção",
+          type: "text",
+          sourceRoute: "/inspecao",
+          data: {
+            insights,
+            inspetoresSelecionados: [...selected],
+          },
+        }}
+      >
       {/* Insights */}
       {insights.length > 0 && (
         <SectionCard
@@ -510,7 +564,21 @@ function InspecaoPage() {
           </ul>
         </SectionCard>
       )}
+      </PresentationSelectable>
 
+      <PresentationSelectable
+        item={{
+          id: "inspecao-ranking-inspetores",
+          title: "Ranking de Inspetores",
+          type: "ranking",
+          sourceRoute: "/inspecao",
+          data: {
+            metaPct: META_PCT,
+            ranking: inspetoresAll,
+            inspetoresSelecionados: [...selected],
+          },
+        }}
+      >
       {/* Ranking individual */}
       <SectionCard
         title={
@@ -626,9 +694,23 @@ function InspecaoPage() {
           })}
         </div>
       </SectionCard>
+      </PresentationSelectable>
 
       {/* Gráficos */}
       <div className="grid gap-4 lg:grid-cols-2">
+        <PresentationSelectable
+          item={{
+            id: "inspecao-eficiencia-inspetor",
+            title: "Eficiência por inspetor",
+            type: "chart",
+            sourceRoute: "/inspecao",
+            data: {
+              rows: barEficiencia,
+            metaPct: META_PCT,
+              inspetoresSelecionados: [...selected],
+            },
+          }}
+        >
         <SectionCard
           title={`Eficiência por inspetor (meta ${META_PCT}%)`}
           printable
@@ -666,7 +748,20 @@ function InspecaoPage() {
             </ResponsiveContainer>
           </div>
         </SectionCard>
+        </PresentationSelectable>
 
+        <PresentationSelectable
+          item={{
+            id: "inspecao-volume-inspetor",
+            title: "Inspeções por inspetor",
+            type: "chart",
+            sourceRoute: "/inspecao",
+            data: {
+              rows: barInspecoes,
+              inspetoresSelecionados: [...selected],
+            },
+          }}
+        >
         <SectionCard title="Inspeções por inspetor" printable printTitle="Inspeções por inspetor">
           <div className="h-72">
             <ResponsiveContainer>
@@ -691,7 +786,20 @@ function InspecaoPage() {
             </ResponsiveContainer>
           </div>
         </SectionCard>
+        </PresentationSelectable>
 
+        <PresentationSelectable
+          item={{
+            id: "inspecao-aprovacoes-reprovacoes",
+            title: "Aprovações × Reprovações por inspetor",
+            type: "chart",
+            sourceRoute: "/inspecao",
+            data: {
+              rows: aprXRep,
+              inspetoresSelecionados: [...selected],
+            },
+          }}
+        >
         <SectionCard
           title="Aprovações x Reprovações por inspetor"
           printable
@@ -718,7 +826,20 @@ function InspecaoPage() {
             </ResponsiveContainer>
           </div>
         </SectionCard>
+        </PresentationSelectable>
 
+        <PresentationSelectable
+          item={{
+            id: "inspecao-evolucao-mensal",
+            title: "Evolução mensal das inspeções",
+            type: "chart",
+            sourceRoute: "/inspecao",
+            data: {
+              rows: evolucaoMensal,
+              inspetoresSelecionados: [...selected],
+            },
+          }}
+        >
         <SectionCard
           title="Evolução mensal das inspeções"
           printable
@@ -749,7 +870,20 @@ function InspecaoPage() {
             </ResponsiveContainer>
           </div>
         </SectionCard>
+        </PresentationSelectable>
 
+        <PresentationSelectable
+          item={{
+            id: "inspecao-participacao-volume",
+            title: "Participação por volume de inspeções",
+            type: "chart",
+            sourceRoute: "/inspecao",
+            data: {
+              rows: donut,
+              inspetoresSelecionados: [...selected],
+            },
+          }}
+        >
         <SectionCard
           title="Participação por volume de inspeções"
           className="lg:col-span-2"
@@ -790,6 +924,8 @@ function InspecaoPage() {
             </ResponsiveContainer>
           </div>
         </SectionCard>
+        </PresentationSelectable>
+
       </div>
     </div>
   );
