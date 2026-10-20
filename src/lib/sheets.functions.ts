@@ -10,7 +10,8 @@ import {
   type NcWeights,
   type NotaOverride,
 } from "./idf-calc";
-import type { DashboardData } from "./types";
+import type { DashboardData, QLDQLDERow } from "./types";
+import { encodeDashboard } from "./wire";
 
 const SPREADSHEET_ID = "1ockGLmUaeC7u0QpwxROYo2rIz-40RnUC8oRGZwrq2Q0";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmgoSKMH0PZdPPLKlKFcNaxWEL9ybC8-NuNMDTRbTcT0xDt6YWRmj5ejBnWldPheI/exec";
@@ -61,6 +62,10 @@ function parseCsv(text: string): string[][] {
   row.push(cell);
   rows.push(row);
 
+  return rows;
+}
+
+function dropEmptyRows(rows: string[][]) {
   return rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
@@ -70,6 +75,7 @@ const SHEET_TTL_MS = 30_000;
 
 function clearSheetCache() {
   sheetCache.clear();
+  dashboardCache = null;
 }
 
 function fetchPublicSheetCached(sheetName: string) {
@@ -94,7 +100,11 @@ async function fetchPublicSheet(sheetName: string, retries = 4): Promise<string[
     const res = await fetch(csvUrl(sheetName));
     const txt = await res.text();
 
-    if (res.ok) return parseCsv(txt);
+    if (res.ok) {
+      const rows = parseCsv(txt);
+      // QLD-QLDE mantém as linhas vazias para o número da linha bater com a planilha.
+      return sheetName === "QLD-QLDE" ? rows : dropEmptyRows(rows);
+    }
 
     if ((res.status === 429 || res.status >= 500) && attempt < retries) {
       await new Promise((r) => setTimeout(r, delay + Math.random() * 300));
@@ -147,7 +157,12 @@ function numberBR(input: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function mapQLDQLDE(values: string[][]) {
+function isChecked(raw: string) {
+  const v = raw.trim().toLowerCase();
+  return v === "true" || v === "verdadeiro" || v === "1" || v === "sim" || v === "x";
+}
+
+function mapQLDQLDE(values: string[][]): QLDQLDERow[] {
   if (!values?.length) return [];
 
   const headers = values[0].map((h) =>
@@ -155,13 +170,14 @@ function mapQLDQLDE(values: string[][]) {
       .trim()
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[̀-ͯ]/g, ""),
   );
 
-  const findColumn = (...names: string[]) =>
-    headers.findIndex((header) =>
-      names.some((name) => header === name || header.includes(name))
-    );
+  const findColumn = (...names: string[]) => {
+    const exact = headers.findIndex((header) => names.includes(header));
+    if (exact >= 0) return exact;
+    return headers.findIndex((header) => names.some((name) => header.includes(name)));
+  };
 
   const idxItem = findColumn("item");
   const idxQtdeBloqueada = findColumn("qtde. bloqueada", "qtde bloqueada");
@@ -169,27 +185,36 @@ function mapQLDQLDE(values: string[][]) {
   const idxQtdeLivre = findColumn("qtde. livre", "qtde livre");
   const idxValorLivre = findColumn("valor livre");
   const idxDeposito = findColumn("deposito");
+  const idxMotivo = findColumn("motivo");
   const idxAcao = findColumn("acao");
   const idxCheck = findColumn("check");
+  const idxFinalizadoEm = findColumn("finalizado em");
+  const idxFinalizadoPor = findColumn("finalizado por");
   const idxAtencao = findColumn("atencao");
+
+  const get = (row: string[], idx: number) => (idx >= 0 ? value(row, idx) : "");
 
   return values
     .slice(1)
-    .map((row) => ({
-      item: idxItem >= 0 ? value(row, idxItem) : "",
-      qtdeBloqueada:
-        idxQtdeBloqueada >= 0 ? numberBR(value(row, idxQtdeBloqueada)) : 0,
-      valorBloqueado:
-        idxValorBloqueado >= 0 ? numberBR(value(row, idxValorBloqueado)) : 0,
-      qtdeLivre:
-        idxQtdeLivre >= 0 ? numberBR(value(row, idxQtdeLivre)) : 0,
-      valorLivre:
-        idxValorLivre >= 0 ? numberBR(value(row, idxValorLivre)) : 0,
-      deposito: idxDeposito >= 0 ? value(row, idxDeposito) : "",
-      acao: idxAcao >= 0 ? value(row, idxAcao) : "",
-      check: idxCheck >= 0 ? value(row, idxCheck) : "",
-      atencao: idxAtencao >= 0 ? value(row, idxAtencao) : "",
-    }))
+    .map((row, index) => {
+      const check = get(row, idxCheck);
+      return {
+        row: index + 2,
+        item: get(row, idxItem),
+        qtdeBloqueada: numberBR(get(row, idxQtdeBloqueada)),
+        valorBloqueado: numberBR(get(row, idxValorBloqueado)),
+        qtdeLivre: numberBR(get(row, idxQtdeLivre)),
+        valorLivre: numberBR(get(row, idxValorLivre)),
+        deposito: get(row, idxDeposito),
+        motivo: get(row, idxMotivo),
+        acao: get(row, idxAcao),
+        check,
+        finalizado: isChecked(check),
+        finalizadoEm: get(row, idxFinalizadoEm),
+        finalizadoPor: get(row, idxFinalizadoPor),
+        atencao: get(row, idxAtencao),
+      };
+    })
     .filter((row) => row.item || row.deposito);
 }
 
@@ -233,51 +258,64 @@ async function loadOverrides(): Promise<Map<string, NotaOverride>> {
   }
 }
 
-export const getDashboardData = createServerFn({ method: "GET" }).handler(
-  async (): Promise<DashboardData> => {
-const [
-  cfg,
-  overrides,
-  idfValues,
-  alertaValues,
-  rncValues,
-  qldQldeValues,
-] = await Promise.all([
-  loadConfig(),
-  loadOverrides(),
-  fetchPublicSheetCached("IDF"),
-  fetchPublicSheetCached("ALERTA"),
-  fetchPublicSheetCached("RNC"),
-  fetchPublicSheetCached("QLD-QLDE"),
-]);
+async function buildDashboardData(): Promise<DashboardData> {
+  const [cfg, overrides, idfValues, alertaValues, rncValues, qldQldeValues] = await Promise.all([
+    loadConfig(),
+    loadOverrides(),
+    fetchPublicSheetCached("IDF"),
+    fetchPublicSheetCached("ALERTA"),
+    fetchPublicSheetCached("RNC"),
+    fetchPublicSheetCached("QLD-QLDE"),
+  ]);
 
-    const idf = mapIDF(idfValues ?? [], cfg, overrides);
-    const alerta = mapAlerta(alertaValues ?? []);
-    const rnc = mapRNC(rncValues ?? []);
-    const qldQlde = mapQLDQLDE(qldQldeValues ?? []);
-    const fornecedores = scoreFornecedores(idf, alerta, rnc, cfg.irBuckets);
+  const idf = mapIDF(idfValues ?? [], cfg, overrides);
+  const alerta = mapAlerta(alertaValues ?? []);
+  const rnc = mapRNC(rncValues ?? []);
+  const qldQlde = mapQLDQLDE(qldQldeValues ?? []);
+  const fornecedores = scoreFornecedores(idf, alerta, rnc, cfg.irBuckets);
 
-    const divisoes = Array.from(
-      new Set([
-        ...idf.map((r) => r.divisao),
-        ...alerta.map((r) => r.divisao),
-        ...rnc.map((r) => r.divisao),
-      ]),
-    )
-      .filter(Boolean)
-      .sort();
+  const divisoes = Array.from(
+    new Set([...idf.map((r) => r.divisao), ...alerta.map((r) => r.divisao), ...rnc.map((r) => r.divisao)]),
+  )
+    .filter(Boolean)
+    .sort();
 
-return {
-  idf,
-  alerta,
-  rnc,
-  qldQlde,
-  fornecedores,
-  divisoes,
-  fetchedAt: new Date().toISOString(),
-};
-  },
-);
+  return { idf, alerta, rnc, qldQlde, fornecedores, divisoes, fetchedAt: new Date().toISOString() };
+}
+
+// Cache do painel já calculado e compactado. Responde na hora com o último
+// resultado e atualiza em segundo plano quando passa de 45 s (stale-while-revalidate).
+const DASHBOARD_FRESH_MS = 45_000;
+const DASHBOARD_MAX_STALE_MS = 15 * 60_000;
+let dashboardCache: { at: number; payload: string } | null = null;
+let dashboardBuilding: Promise<string> | null = null;
+
+function rebuildDashboard() {
+  if (!dashboardBuilding) {
+    dashboardBuilding = buildDashboardData()
+      .then((data) => {
+        const payload = encodeDashboard(data);
+        dashboardCache = { at: Date.now(), payload };
+        return payload;
+      })
+      .finally(() => {
+        dashboardBuilding = null;
+      });
+  }
+  return dashboardBuilding;
+}
+
+export const getDashboardData = createServerFn({ method: "GET" })
+  .inputValidator((d: { force?: boolean } | undefined) => d ?? {})
+  .handler(async ({ data }): Promise<{ payload: string }> => {
+    const age = dashboardCache ? Date.now() - dashboardCache.at : Infinity;
+    if (data.force || !dashboardCache || age > DASHBOARD_MAX_STALE_MS) {
+      if (data.force) clearSheetCache();
+      return { payload: await rebuildDashboard() };
+    }
+    if (age > DASHBOARD_FRESH_MS) rebuildDashboard().catch((e) => console.error("[dashboard]", e));
+    return { payload: dashboardCache.payload };
+  });
 
 export const getAppConfig = createServerFn({ method: "GET" }).handler(async () => {
   return await loadConfig();
@@ -525,4 +563,141 @@ export const listAuditLog = createServerFn({ method: "GET" })
     } catch {
       return [];
     }
+  });
+
+/* ======================================================================
+   QualiHub — gravações novas (QLD/QLDE e Organograma)
+   Usam um Apps Script próprio (apps-script/QualiHub.gs), separado do
+   script antigo. Configure a URL em QUALIHUB_SCRIPT_URL.
+   ====================================================================== */
+
+const QUALIHUB_SCRIPT_URL_FALLBACK = "";
+
+function qualihubScriptUrl() {
+  const url = process.env.QUALIHUB_SCRIPT_URL || QUALIHUB_SCRIPT_URL_FALLBACK;
+  if (!url) {
+    throw new Error(
+      "Gravação ainda não configurada: publique o Apps Script de apps-script/QualiHub.gs e informe a URL em QUALIHUB_SCRIPT_URL.",
+    );
+  }
+  return url;
+}
+
+async function postToQualiHubScript(payload: Record<string, unknown>) {
+  const res = await fetch(qualihubScriptUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+    redirect: "follow",
+  });
+  const txt = await res.text();
+  let result: { ok?: boolean; error?: string; [key: string]: unknown };
+  try {
+    result = JSON.parse(txt);
+  } catch {
+    throw new Error(
+      res.ok
+        ? "O Apps Script respondeu em formato inesperado. Confira se a implantação está como 'Qualquer pessoa'."
+        : `Apps Script indisponível (${res.status}).`,
+    );
+  }
+  if (result.ok === false) throw new Error(result.error || "Erro ao gravar na planilha.");
+  clearSheetCache();
+  return result;
+}
+
+export type QldFields = Partial<{
+  item: string;
+  qtdeBloqueada: number;
+  valorBloqueado: number;
+  qtdeLivre: number;
+  valorLivre: number;
+  deposito: string;
+  motivo: string;
+  acao: string;
+}>;
+
+function requireAutor(autor?: string) {
+  if (!autor?.trim()) throw new Error("Informe seu nome para registrar a alteração.");
+  return autor.trim();
+}
+
+export const updateQldItem = createServerFn({ method: "POST" })
+  .inputValidator((d: { row: number; item: string; deposito: string; fields: QldFields; autor: string }) => {
+    if (!d.item) throw new Error("Item obrigatório");
+    requireAutor(d.autor);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    await postToQualiHubScript({ action: "updateQld", ...data, autor: data.autor.trim() });
+    return { ok: true };
+  });
+
+export const addQldItem = createServerFn({ method: "POST" })
+  .inputValidator((d: { fields: QldFields; autor: string }) => {
+    if (!d.fields?.item?.trim()) throw new Error("Informe o item.");
+    if (!d.fields?.deposito?.trim()) throw new Error("Informe o depósito.");
+    requireAutor(d.autor);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    await postToQualiHubScript({ action: "addQld", ...data, autor: data.autor.trim() });
+    return { ok: true };
+  });
+
+export const setQldCheck = createServerFn({ method: "POST" })
+  .inputValidator((d: { row: number; item: string; deposito: string; checked: boolean; autor: string }) => {
+    if (!d.item) throw new Error("Item obrigatório");
+    requireAutor(d.autor);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const result = await postToQualiHubScript({ action: "setQldCheck", ...data, autor: data.autor.trim() });
+    return { ok: true, finalizadoEm: String(result.finalizadoEm ?? "") };
+  });
+
+/** Organograma salvo na aba ORGANOGRAMA (JSON em blocos na coluna A). */
+export const getOrganograma = createServerFn({ method: "GET" }).handler(async () => {
+  // Lê pelo Apps Script: a planilha pública devolveria a primeira aba (IDF)
+  // quando a aba ORGANOGRAMA ainda não existe.
+  const url = process.env.QUALIHUB_SCRIPT_URL || QUALIHUB_SCRIPT_URL_FALLBACK;
+  if (!url) return { json: null as string | null };
+  try {
+    const res = await fetch(`${url}?action=getOrg`, { redirect: "follow", signal: AbortSignal.timeout(15000) });
+    const data = (await res.json()) as { ok?: boolean; org?: unknown };
+    return { json: data?.org ? JSON.stringify(data.org) : null };
+  } catch {
+    return { json: null as string | null };
+  }
+});
+
+export const saveOrganograma = createServerFn({ method: "POST" })
+  .inputValidator((d: { json: string; autor: string }) => {
+    if (!d.json?.trim().startsWith("{")) throw new Error("Organograma inválido");
+    requireAutor(d.autor);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const result = await postToQualiHubScript({
+      action: "saveOrg",
+      org: JSON.parse(data.json),
+      autor: data.autor.trim(),
+    });
+    return { ok: true, atualizadoEm: String(result.atualizadoEm ?? "") };
+  });
+
+export const uploadOrgFoto = createServerFn({ method: "POST" })
+  .inputValidator((d: { base64: string; nome: string }) => {
+    if (!d.base64) throw new Error("Foto vazia");
+    if (d.base64.length > 2_000_000) throw new Error("Foto muito grande");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const result = await postToQualiHubScript({
+      action: "uploadFoto",
+      base64: data.base64,
+      nome: data.nome,
+      mime: "image/jpeg",
+    });
+    return { fileId: String(result.fileId ?? "") };
   });

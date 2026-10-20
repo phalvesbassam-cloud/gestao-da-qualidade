@@ -9,26 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as RncRouteImport } from './routes/rnc'
 import { Route as ReuniaoRouteImport } from './routes/reuniao'
 import { Route as QldQldeRouteImport } from './routes/qld-qlde'
+import { Route as OrganogramaRouteImport } from './routes/organograma'
 import { Route as InspecaoRouteImport } from './routes/inspecao'
 import { Route as IdfRouteImport } from './routes/idf'
 import { Route as AuditoriaRouteImport } from './routes/auditoria'
 import { Route as ApresentacaoRouteImport } from './routes/apresentacao'
 import { Route as AlertaRouteImport } from './routes/alerta'
 import { Route as AdminRouteImport } from './routes/admin'
-import { Route as AcoesRouteImport } from './routes/acoes'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as IndexBackupRouteImport } from './routes/index.backup'
 import { Route as FornecedorFornecedorRouteImport } from './routes/fornecedor.$fornecedor'
 
-const TimelineRoute = TimelineRouteImport.update({
-  id: '/timeline',
-  path: '/timeline',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RncRoute = RncRouteImport.update({
   id: '/rnc',
   path: '/rnc',
@@ -42,6 +35,11 @@ const ReuniaoRoute = ReuniaoRouteImport.update({
 const QldQldeRoute = QldQldeRouteImport.update({
   id: '/qld-qlde',
   path: '/qld-qlde',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganogramaRoute = OrganogramaRouteImport.update({
+  id: '/organograma',
+  path: '/organograma',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InspecaoRoute = InspecaoRouteImport.update({
@@ -74,19 +72,9 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AcoesRoute = AcoesRouteImport.update({
-  id: '/acoes',
-  path: '/acoes',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexBackupRoute = IndexBackupRouteImport.update({
-  id: '/index/backup',
-  path: '/index/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FornecedorFornecedorRoute = FornecedorFornecedorRouteImport.update({
@@ -97,130 +85,109 @@ const FornecedorFornecedorRoute = FornecedorFornecedorRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/acoes': typeof AcoesRoute
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
   '/apresentacao': typeof ApresentacaoRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
+  '/organograma': typeof OrganogramaRoute
   '/qld-qlde': typeof QldQldeRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
-  '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
-  '/index/backup': typeof IndexBackupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/acoes': typeof AcoesRoute
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
   '/apresentacao': typeof ApresentacaoRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
+  '/organograma': typeof OrganogramaRoute
   '/qld-qlde': typeof QldQldeRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
-  '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
-  '/index/backup': typeof IndexBackupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/acoes': typeof AcoesRoute
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
   '/apresentacao': typeof ApresentacaoRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
+  '/organograma': typeof OrganogramaRoute
   '/qld-qlde': typeof QldQldeRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
-  '/timeline': typeof TimelineRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
-  '/index/backup': typeof IndexBackupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/acoes'
     | '/admin'
     | '/alerta'
     | '/apresentacao'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
+    | '/organograma'
     | '/qld-qlde'
     | '/reuniao'
     | '/rnc'
-    | '/timeline'
     | '/fornecedor/$fornecedor'
-    | '/index/backup'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/acoes'
     | '/admin'
     | '/alerta'
     | '/apresentacao'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
+    | '/organograma'
     | '/qld-qlde'
     | '/reuniao'
     | '/rnc'
-    | '/timeline'
     | '/fornecedor/$fornecedor'
-    | '/index/backup'
   id:
     | '__root__'
     | '/'
-    | '/acoes'
     | '/admin'
     | '/alerta'
     | '/apresentacao'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
+    | '/organograma'
     | '/qld-qlde'
     | '/reuniao'
     | '/rnc'
-    | '/timeline'
     | '/fornecedor/$fornecedor'
-    | '/index/backup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AcoesRoute: typeof AcoesRoute
   AdminRoute: typeof AdminRoute
   AlertaRoute: typeof AlertaRoute
   ApresentacaoRoute: typeof ApresentacaoRoute
   AuditoriaRoute: typeof AuditoriaRoute
   IdfRoute: typeof IdfRoute
   InspecaoRoute: typeof InspecaoRoute
+  OrganogramaRoute: typeof OrganogramaRoute
   QldQldeRoute: typeof QldQldeRoute
   ReuniaoRoute: typeof ReuniaoRoute
   RncRoute: typeof RncRoute
-  TimelineRoute: typeof TimelineRoute
   FornecedorFornecedorRoute: typeof FornecedorFornecedorRoute
-  IndexBackupRoute: typeof IndexBackupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/timeline': {
-      id: '/timeline'
-      path: '/timeline'
-      fullPath: '/timeline'
-      preLoaderRoute: typeof TimelineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/rnc': {
       id: '/rnc'
       path: '/rnc'
@@ -240,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/qld-qlde'
       fullPath: '/qld-qlde'
       preLoaderRoute: typeof QldQldeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organograma': {
+      id: '/organograma'
+      path: '/organograma'
+      fullPath: '/organograma'
+      preLoaderRoute: typeof OrganogramaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inspecao': {
@@ -284,25 +258,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/acoes': {
-      id: '/acoes'
-      path: '/acoes'
-      fullPath: '/acoes'
-      preLoaderRoute: typeof AcoesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/index/backup': {
-      id: '/index/backup'
-      path: '/index/backup'
-      fullPath: '/index/backup'
-      preLoaderRoute: typeof IndexBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fornecedor/$fornecedor': {
@@ -317,19 +277,17 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AcoesRoute: AcoesRoute,
   AdminRoute: AdminRoute,
   AlertaRoute: AlertaRoute,
   ApresentacaoRoute: ApresentacaoRoute,
   AuditoriaRoute: AuditoriaRoute,
   IdfRoute: IdfRoute,
   InspecaoRoute: InspecaoRoute,
+  OrganogramaRoute: OrganogramaRoute,
   QldQldeRoute: QldQldeRoute,
   ReuniaoRoute: ReuniaoRoute,
   RncRoute: RncRoute,
-  TimelineRoute: TimelineRoute,
   FornecedorFornecedorRoute: FornecedorFornecedorRoute,
-  IndexBackupRoute: IndexBackupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

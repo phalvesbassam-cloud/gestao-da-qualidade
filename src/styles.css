@@ -65,108 +65,138 @@
   --font-display: "Sora", "Inter", system-ui, sans-serif;
 }
 
-/* Frasle brand palette
-   Primary: Frasle red #E30613 ~ oklch(0.58 0.24 27)
-   Dark graphite from logo background */
+/* ==========================================================
+   QualiHub — Design tokens (Frasle Mobility)
+   Vermelho Frasle como cor de marca, grafite como base.
+   Os tokens de gráfico mudam por tema para manter contraste
+   (inclusive no papel, que sempre usa o tema claro).
+   ========================================================== */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.985 0.003 240);
-  --foreground: oklch(0.18 0.02 250);
+  --radius: 0.875rem;
+  --background: oklch(0.972 0.004 255);
+  --foreground: oklch(0.2 0.018 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 250);
+  --card-foreground: oklch(0.2 0.018 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 250);
+  --popover-foreground: oklch(0.2 0.018 260);
 
-  --primary: oklch(0.58 0.24 27); /* Frasle red */
+  --primary: oklch(0.565 0.225 27);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.95 0.006 240);
-  --secondary-foreground: oklch(0.22 0.02 250);
-  --muted: oklch(0.95 0.006 240);
-  --muted-foreground: oklch(0.5 0.015 250);
-  --accent: oklch(0.95 0.04 27 / 60%); /* light red wash */
-  --accent-foreground: oklch(0.35 0.18 27);
-  --destructive: oklch(0.55 0.24 27);
+  --secondary: oklch(0.955 0.005 255);
+  --secondary-foreground: oklch(0.24 0.018 260);
+  --muted: oklch(0.955 0.005 255);
+  --muted-foreground: oklch(0.47 0.016 260);
+  --accent: oklch(0.955 0.02 27);
+  --accent-foreground: oklch(0.42 0.17 27);
+  --destructive: oklch(0.56 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.008 240);
-  --input: oklch(0.9 0.008 240);
-  --ring: oklch(0.58 0.24 27);
+  --border: oklch(0.905 0.007 255);
+  --input: oklch(0.89 0.008 255);
+  --ring: oklch(0.565 0.225 27);
 
-  --success: oklch(0.62 0.17 145);
+  --success: oklch(0.56 0.15 150);
   --success-foreground: oklch(0.99 0 0);
-  --warning: oklch(0.78 0.16 75);
+  --warning: oklch(0.66 0.16 65);
   --warning-foreground: oklch(0.2 0.05 60);
-  --info: oklch(0.6 0.04 250); /* graphite */
+  --info: oklch(0.55 0.13 240);
   --info-foreground: oklch(0.99 0 0);
 
-  --chart-1: oklch(0.58 0.24 27); /* red */
-  --chart-2: oklch(0.62 0.17 145); /* green */
-  --chart-3: oklch(0.78 0.16 75); /* amber */
-  --chart-4: oklch(0.35 0.02 250); /* graphite */
-  --chart-5: oklch(0.55 0.04 250); /* light graphite */
+  --chart-1: oklch(0.565 0.225 27);
+  --chart-2: oklch(0.56 0.15 150);
+  --chart-3: oklch(0.66 0.16 65);
+  --chart-4: oklch(0.38 0.02 260);
+  --chart-5: oklch(0.55 0.13 240);
 
-  /* Padded chart palette (Frasle) */
-  --chart-approved: #22c55e;
-  --chart-conditional: #eab308;
-  --chart-rejected: #ef4444;
-  --chart-alert: #f97316;
-  --chart-rnc: #38bdf8;
-  --chart-insp: #e2e8f0;
-  --chart-ppm: #c084fc;
+  --chart-approved: #16a34a;
+  --chart-conditional: #d97706;
+  --chart-rejected: #dc2626;
+  --chart-alert: #ea580c;
+  --chart-rnc: #0284c7;
+  --chart-insp: #475569;
+  --chart-ppm: #7c3aed;
+  --chart-grid: oklch(0.9 0.006 255);
+  --chart-axis: oklch(0.5 0.015 260);
 
-  --sidebar: oklch(0.22 0.01 250); /* dark graphite */
-  --sidebar-foreground: oklch(0.88 0.008 240);
-  --sidebar-primary: oklch(0.58 0.24 27); /* red accent */
+  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 10px 28px -18px rgb(15 23 42 / 0.18);
+  --surface-shadow-hover: 0 2px 4px rgb(15 23 42 / 0.05), 0 18px 40px -20px rgb(15 23 42 / 0.28);
+  --surface-highlight: none;
+  --hero-glow: oklch(0.565 0.225 27 / 0.1);
+
+  --sidebar: oklch(0.2 0.012 260);
+  --sidebar-foreground: oklch(0.86 0.008 255);
+  --sidebar-primary: oklch(0.6 0.225 27);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.28 0.012 250);
-  --sidebar-accent-foreground: oklch(0.97 0.005 240);
-  --sidebar-border: oklch(0.32 0.012 250);
-  --sidebar-ring: oklch(0.58 0.24 27);
+  --sidebar-accent: oklch(0.27 0.014 260);
+  --sidebar-accent-foreground: oklch(0.98 0.004 255);
+  --sidebar-border: oklch(0.3 0.014 260);
+  --sidebar-ring: oklch(0.6 0.225 27);
 }
 
 .dark {
-  --background: oklch(0.14 0.012 250);
-  --foreground: oklch(0.96 0.006 240);
-  --card: oklch(0.19 0.014 250);
-  --card-foreground: oklch(0.96 0.006 240);
-  --popover: oklch(0.19 0.014 250);
-  --popover-foreground: oklch(0.96 0.006 240);
-  --primary: oklch(0.65 0.24 27);
-  --primary-foreground: oklch(0.14 0.012 250);
-  --secondary: oklch(0.24 0.014 250);
-  --secondary-foreground: oklch(0.96 0.006 240);
-  --muted: oklch(0.24 0.014 250);
-  --muted-foreground: oklch(0.7 0.012 240);
-  --accent: oklch(0.32 0.08 27);
-  --accent-foreground: oklch(0.96 0.006 240);
-  --destructive: oklch(0.65 0.24 27);
+  --background: oklch(0.135 0.01 262);
+  --foreground: oklch(0.965 0.005 255);
+  --card: oklch(0.175 0.012 262);
+  --card-foreground: oklch(0.965 0.005 255);
+  --popover: oklch(0.195 0.013 262);
+  --popover-foreground: oklch(0.965 0.005 255);
+  --primary: oklch(0.64 0.22 25);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.225 0.013 262);
+  --secondary-foreground: oklch(0.965 0.005 255);
+  --muted: oklch(0.215 0.012 262);
+  --muted-foreground: oklch(0.71 0.012 255);
+  --accent: oklch(0.27 0.06 25);
+  --accent-foreground: oklch(0.97 0.004 255);
+  --destructive: oklch(0.64 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.24 27);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.64 0.22 25);
 
-  --success: oklch(0.72 0.18 145);
-  --warning: oklch(0.82 0.17 75);
-  --info: oklch(0.7 0.015 240);
+  --success: oklch(0.74 0.17 150);
+  --warning: oklch(0.82 0.15 75);
+  --info: oklch(0.74 0.12 235);
 
-  --chart-1: oklch(0.7 0.22 27);
-  --chart-2: oklch(0.72 0.18 145);
-  --chart-3: oklch(0.82 0.17 75);
-  --chart-4: oklch(0.7 0.015 240);
-  --chart-5: oklch(0.55 0.04 250);
+  --chart-1: oklch(0.68 0.21 25);
+  --chart-2: oklch(0.74 0.17 150);
+  --chart-3: oklch(0.82 0.15 75);
+  --chart-4: oklch(0.78 0.012 255);
+  --chart-5: oklch(0.74 0.12 235);
 
-  --sidebar: oklch(0.12 0.01 250);
-  --sidebar-foreground: oklch(0.88 0.008 240);
-  --sidebar-primary: oklch(0.65 0.24 27);
+  --chart-approved: #22c55e;
+  --chart-conditional: #eab308;
+  --chart-rejected: #f43f5e;
+  --chart-alert: #fb923c;
+  --chart-rnc: #38bdf8;
+  --chart-insp: #cbd5e1;
+  --chart-ppm: #c084fc;
+  --chart-grid: oklch(1 0 0 / 8%);
+  --chart-axis: oklch(0.68 0.012 255);
+
+  --surface-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 18px 40px -26px rgb(0 0 0 / 0.9);
+  --surface-shadow-hover: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 22px 48px -24px rgb(0 0 0 / 0.95);
+  --surface-highlight: linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 40%);
+  --hero-glow: oklch(0.64 0.22 25 / 0.2);
+
+  --sidebar: oklch(0.115 0.009 262);
+  --sidebar-foreground: oklch(0.82 0.008 255);
+  --sidebar-primary: oklch(0.64 0.22 25);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.22 0.014 250);
-  --sidebar-accent-foreground: oklch(0.96 0.006 240);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.24 27);
+  --sidebar-accent: oklch(0.2 0.012 262);
+  --sidebar-accent-foreground: oklch(0.97 0.004 255);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.64 0.22 25);
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
   body {
     background-color: var(--color-background);
@@ -179,8 +209,116 @@
   h3,
   h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
   }
+}
+
+/* ====== Superfícies padrão ====== */
+.surface {
+  position: relative;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  background-image: var(--surface-highlight);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--surface-shadow);
+}
+.surface-muted {
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-muted) 55%, transparent);
+  border-radius: var(--radius-lg);
+}
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) + 10px);
+  background:
+    radial-gradient(120% 140% at 100% 0%, var(--hero-glow), transparent 55%),
+    radial-gradient(80% 120% at 0% 100%, color-mix(in oklab, var(--hero-glow) 45%, transparent), transparent 60%),
+    var(--color-card);
+  box-shadow: var(--surface-shadow);
+}
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-foreground) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-foreground) 4%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(70% 90% at 85% 10%, black, transparent 75%);
+}
+.hero-panel > * {
+  position: relative;
+  z-index: 1;
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-background) 70%, transparent);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.6875rem;
+  color: var(--color-muted-foreground);
+}
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-muted) 70%, transparent);
+}
+.segmented > button {
+  border-radius: 7px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.segmented > button:hover {
+  color: var(--color-foreground);
+}
+.segmented > button[data-active="true"] {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.12),
+    0 0 0 1px var(--color-border);
+}
+.dark .segmented > button[data-active="true"] {
+  background: color-mix(in oklab, var(--color-primary) 22%, var(--color-card));
+  color: #fff;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 45%, transparent);
+}
+
+/* Eixos e grades do Recharts seguem o tema por padrão. */
+.recharts-cartesian-grid line {
+  stroke: var(--chart-grid);
+}
+.recharts-cartesian-axis-tick-value,
+.recharts-polar-angle-axis-tick-value {
+  fill: var(--chart-axis);
+}
+.recharts-legend-item-text {
+  color: var(--color-muted-foreground) !important;
 }
 
 /* TV Mode */
@@ -230,12 +368,11 @@
   will-change: transform;
 }
 .card-premium:hover {
-  transform: translateY(-2px) scale(1.01);
-  border-color: color-mix(in oklab, var(--color-primary) 45%, transparent);
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-primary) 40%, var(--color-border));
   box-shadow:
-    0 10px 30px -10px color-mix(in oklab, var(--color-primary) 30%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--color-primary) 25%, transparent),
-    0 0 24px -6px color-mix(in oklab, var(--color-primary) 35%, transparent);
+    var(--surface-shadow-hover),
+    0 0 0 1px color-mix(in oklab, var(--color-primary) 18%, transparent);
 }
 .section-premium {
   transition:
@@ -243,8 +380,8 @@
     border-color 220ms ease;
 }
 .section-premium:hover {
-  border-color: color-mix(in oklab, var(--color-primary) 35%, transparent);
-  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--color-primary) 25%, transparent);
+  border-color: color-mix(in oklab, var(--color-primary) 28%, var(--color-border));
+  box-shadow: var(--surface-shadow-hover);
 }
 
 /* Recharts polish: readable tooltips + smoother hover */
@@ -333,35 +470,26 @@ a[href*="lovable.dev"] {
   }
 }
 
-/* ====== Scrollbars fantasma (globais) ====== */
-/* WebKit: barra invisível mas funcional */
-*::-webkit-scrollbar {
-  width: 0px;
-  height: 0px;
-  background: transparent;
+/* ====== Scrollbars finas (globais) ====== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-muted-foreground) 35%, transparent) transparent;
 }
-*::-webkit-scrollbar-thumb {
-  background: transparent;
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
-/* Firefox */
-* {
-  scrollbar-width: none;
-}
-/* IE / Edge legado */
-* {
-  -ms-overflow-style: none;
-}
-/* Hover suave em containers de scroll quando o usuário interage */
-.scroll-hint:hover::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.scroll-hint:hover::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--color-muted-foreground) 40%, transparent);
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--color-muted-foreground) 30%, transparent);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-muted-foreground) 55%, transparent);
 }
 
 /* Modo TV: garantir zero scrollbar e overflow oculto onde possível */
@@ -561,328 +689,14 @@ a[href*="lovable.dev"] {
   .kpi-mini { padding-inline: 0.45rem; }
 }
 
-/* ====== IMPRESSÃO EXECUTIVA — QUALIHUB ====== */
+/* ====== IMPRESSÃO ======
+   Os botões "Imprimir" montam um documento próprio num iframe (src/lib/print.ts),
+   sempre no tema claro e com o gráfico redimensionado para o A4. */
 .print-only {
   display: none !important;
 }
-
 @media print {
-  @page {
-    size: A4 landscape;
-    margin: 8mm;
-  }
-
-  html,
-  body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-
-  html.printing-section body * {
-    visibility: hidden !important;
-  }
-
-  html.printing-section [data-print-target],
-  html.printing-section [data-print-target] * {
-    visibility: visible !important;
-  }
-
-  html.printing-section *,
-  html.printing-section *::before,
-  html.printing-section *::after {
-    animation: none !important;
-    transition: none !important;
-    text-shadow: none !important;
-  }
-
-  html.printing-section .recharts-tooltip-wrapper,
-  html.printing-section .recharts-tooltip-cursor,
-  html.printing-section [role="tooltip"],
-  html.printing-section [data-radix-popper-content-wrapper] {
+  .no-print {
     display: none !important;
-  }
-
-  html.printing-section [data-print-target] {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    height: auto !important;
-    max-height: none !important;
-    min-height: 180mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background: #fff !important;
-    color: #0f172a !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  html.printing-section [data-print-target] > header,
-  html.printing-section [data-print-target] .no-print,
-  html.printing-section [data-print-target] button:not(.print-keep),
-  html.printing-section [data-print-target] [role="button"]:not(.print-keep) {
-    display: none !important;
-  }
-
-  html.printing-section [data-print-target] .print-only {
-    display: flex !important;
-  }
-
-  html.printing-section [data-print-target] .print-content {
-    display: block !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-    padding: 4mm 7mm 5mm !important;
-    background: #fff !important;
-    color: #0f172a !important;
-  }
-
-  html.printing-section [data-print-target] .print-content * {
-    text-shadow: none !important;
-  }
-
-  html.printing-section [data-print-target] .print-content .text-muted-foreground {
-    color: #64748b !important;
-  }
-
-  html.printing-section [data-print-target] .print-content .text-foreground,
-  html.printing-section [data-print-target] .print-content .text-white {
-    color: #0f172a !important;
-  }
-
-  /* Converte os painéis dark em cartões claros no papel. */
-  html.printing-section [data-print-target] .print-content .rounded-xl,
-  html.printing-section [data-print-target] .print-content .rounded-2xl,
-  html.printing-section [data-print-target] .print-content .rounded-3xl,
-  html.printing-section [data-print-target] .print-content .card-premium,
-  html.printing-section [data-print-target] .print-content .section-premium {
-    background-color: #fff !important;
-    background-image: none !important;
-    box-shadow: none !important;
-  }
-
-  html.printing-section [data-print-target] .print-content .border,
-  html.printing-section [data-print-target] .print-content .border-border {
-    border-color: #cbd5e1 !important;
-  }
-
-  /* Cabeçalho do formulário */
-  html.printing-section [data-print-target] .print-chrome-bar {
-    display: block !important;
-    width: 100% !important;
-    height: 5mm !important;
-    background: var(--print-accent, #111827) !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  html.printing-section [data-print-target] .print-header {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    padding: 4mm 8mm 2mm !important;
-    background: #fff !important;
-  }
-
-  html.printing-section [data-print-target] .print-header-left {
-    display: flex !important;
-    align-items: center !important;
-    gap: 4mm !important;
-  }
-
-  html.printing-section [data-print-target] .print-header-icon {
-    width: 6mm !important;
-    height: 6mm !important;
-    color: #111827 !important;
-  }
-
-  html.printing-section [data-print-target] .print-header-title {
-    color: #111827 !important;
-    font-size: 12pt !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.05em !important;
-  }
-
-  html.printing-section [data-print-target] .print-header-datebox {
-    padding: 1.5mm 4mm !important;
-    border: 0.3mm solid #64748b !important;
-    border-radius: 1.5mm !important;
-    background: #fff !important;
-    color: #0f172a !important;
-    font-size: 9pt !important;
-  }
-
-  html.printing-section [data-print-target] .print-header-logo {
-    width: auto !important;
-    height: 10mm !important;
-    object-fit: contain !important;
-  }
-
-  html.printing-section [data-print-target] .print-titlebar {
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 1mm 8mm 3mm !important;
-    border-bottom: 0.3mm solid #cbd5e1 !important;
-    background: #fff !important;
-  }
-
-  html.printing-section [data-print-target] .print-doc-title {
-    margin: 0 !important;
-    color: #0f172a !important;
-    font-size: 15pt !important;
-    font-weight: 800 !important;
-  }
-
-  html.printing-section [data-print-target] .print-doc-period {
-    margin-top: 1mm !important;
-    color: #475569 !important;
-    font-size: 8.5pt !important;
-  }
-
-  /* Reunião: seis KPIs na mesma linha no A4 paisagem. */
-  html.printing-section [data-print-target] .print-content .xl\:grid-cols-6 {
-    display: grid !important;
-    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-    gap: 2.5mm !important;
-  }
-
-  html.printing-section [data-print-target] .print-content .xl\:grid-cols-6 > * {
-    min-width: 0 !important;
-    min-height: 24mm !important;
-    padding: 3mm !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  /* Gráficos */
-  html.printing-section [data-print-target] .recharts-wrapper,
-  html.printing-section [data-print-target] .recharts-responsive-container,
-  html.printing-section [data-print-target] svg.recharts-surface {
-    background: #fff !important;
-  }
-
-  html.printing-section [data-print-target] .recharts-responsive-container {
-    width: 100% !important;
-    height: 66mm !important;
-    min-height: 66mm !important;
-  }
-
-  html.printing-section [data-print-target] svg text,
-  html.printing-section [data-print-target] svg tspan,
-  html.printing-section [data-print-target] .recharts-text,
-  html.printing-section [data-print-target] .recharts-cartesian-axis-tick-value,
-  html.printing-section [data-print-target] .recharts-label,
-  html.printing-section [data-print-target] .recharts-label-list text {
-    fill: #334155 !important;
-    color: #334155 !important;
-  }
-
-  html.printing-section [data-print-target] .recharts-cartesian-axis line,
-  html.printing-section [data-print-target] .recharts-cartesian-axis-tick line {
-    stroke: #64748b !important;
-  }
-
-  html.printing-section [data-print-target] .recharts-cartesian-grid line {
-    stroke: #e2e8f0 !important;
-  }
-
-  html.printing-section [data-print-target] .recharts-legend-item-text,
-  html.printing-section [data-print-target] .recharts-default-legend {
-    color: #334155 !important;
-  }
-
-  /* Tabelas */
-  html.printing-section [data-print-target] table {
-    width: 100% !important;
-    table-layout: fixed !important;
-    border-collapse: collapse !important;
-    font-size: 7.5pt !important;
-  }
-
-  html.printing-section [data-print-target] th,
-  html.printing-section [data-print-target] td {
-    padding: 1mm 1.2mm !important;
-    border-color: #cbd5e1 !important;
-  }
-
-  /* Permite relatório multipágina sem cortar um card no meio. */
-  html.printing-section [data-print-target] .print-content > div,
-  html.printing-section [data-print-target] .print-content section,
-  html.printing-section [data-print-target] .print-content .grid > * {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  html.printing-section [data-print-target] .print-content .space-y-5 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 3mm !important;
-  }
-
-  /* QLD / QLDE */
-  html.printing-section [data-print-target].qld-print-summary .print-content {
-    padding: 4mm 8mm !important;
-  }
-
-  html.printing-section [data-print-target].qld-print-summary .blur-3xl {
-    display: none !important;
-  }
-
-  html.printing-section [data-print-target].qld-print-summary .lg\:grid-cols-2 {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 4mm !important;
-  }
-
-  html.printing-section [data-print-target].qld-print-summary .lg\:grid-cols-4 {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 3mm !important;
-  }
-
-  html.printing-section [data-print-target].qld-print-summary .border-warning\/30 {
-    border: 0.4mm solid #d97706 !important;
-  }
-
-  html.printing-section [data-print-target].qld-print-summary .border-destructive\/30 {
-    border: 0.4mm solid #dc2626 !important;
-  }
-
-  html.printing-section [data-print-target].qld-print-summary .lg\:grid-cols-4 > div {
-    min-height: 16mm !important;
-    padding: 3mm !important;
-    background: #fff !important;
-    border: 0.25mm solid #cbd5e1 !important;
-    border-radius: 2mm !important;
-  }
-
-  /* Rodapé */
-  html.printing-section [data-print-target] .print-footer {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    margin-top: 3mm !important;
-    padding: 1.5mm 8mm !important;
-    border-top: 0.25mm solid #cbd5e1 !important;
-    background: #fff !important;
-  }
-
-  html.printing-section [data-print-target] .print-footer-logo {
-    width: auto !important;
-    height: 5mm !important;
-    object-fit: contain !important;
-  }
-
-  html.printing-section [data-print-target] .print-footer-code {
-    color: #475569 !important;
-    font-size: 7.5pt !important;
-    letter-spacing: 0.02em !important;
   }
 }

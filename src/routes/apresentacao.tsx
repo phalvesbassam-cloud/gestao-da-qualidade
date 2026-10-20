@@ -1,717 +1,664 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { generatePresentationPptx } from "@/lib/presentation-pptx";
-import { preparePresentationQualiAI } from "@/lib/quali-ai.functions";
+import { toast } from "sonner";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Copy,
+  Download,
   FilePlus2,
+  GripVertical,
   Loader2,
+  MonitorPlay,
+  Moon,
+  Plus,
   Presentation,
   Sparkles,
-  X,
+  Sun,
   Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { PresentationSlidePreview } from "@/components/presentation-slide-preview";
-import { usePresentation } from "@/contexts/presentation-context";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { SlideCanvas, SlideFrame } from "@/components/slide-canvas";
+import { SlidePresenter } from "@/components/slide-presenter";
+import { usePresentation, type PresentationSlide } from "@/contexts/presentation-context";
+import { buildDeck, closingSlide, coverSlide } from "@/lib/deck";
+import { generatePresentationPptx } from "@/lib/presentation-pptx";
+import { preparePresentationQualiAI } from "@/lib/quali-ai.functions";
+import { ensureSpec, textSpec, type ChartKind, type SlideSpec } from "@/lib/slide-spec";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/apresentacao")({
+  head: () => ({ meta: [{ title: "Editor de apresentação — QualiHub" }] }),
   component: PresentationEditorPage,
 });
 
+const CHART_KINDS: { value: ChartKind; label: string }[] = [
+  { value: "line", label: "Linha" },
+  { value: "area", label: "Área" },
+  { value: "bar", label: "Colunas" },
+  { value: "barH", label: "Barras" },
+  { value: "stacked", label: "Empilhado" },
+  { value: "doughnut", label: "Rosca" },
+  { value: "pie", label: "Pizza" },
+  { value: "combo", label: "Combinado" },
+];
+
 function PresentationEditorPage() {
   const router = useRouter();
-
-  const {
-    slides,
-    updateSlide,
-    removeSlide,
-    moveSlideUp,
-    moveSlideDown,
-    addManualSlide,
-    setPresentationSlides,
-  } = usePresentation();
-
-  const [activeSlideId, setActiveSlideId] = useState<string | null>(
-    slides[0]?.id ?? null,
-  );
-
+  const p = usePresentation();
+  const { slides, deck } = p;
+  const [activeId, setActiveId] = useState<string | null>(slides[0]?.id ?? null);
+  const [presenting, setPresenting] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiPreset, setAiPreset] = useState<
-    "diaria" | "mensal" | "fornecedor" | null
-  >(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-
-  const activeSlide =
-    slides.find((slide) => slide.id === activeSlideId) ??
-    slides[0] ??
-    null;
-
-  const activeIndex = activeSlide
-    ? slides.findIndex((slide) => slide.id === activeSlide.id)
-    : -1;
+  const [dragId, setDragId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (slides.length === 0) {
-      setActiveSlideId(null);
-      return;
-    }
+    if (!slides.some((s) => s.id === activeId)) setActiveId(slides[0]?.id ?? null);
+  }, [slides, activeId]);
 
-    const stillExists = slides.some(
-      (slide) => slide.id === activeSlideId,
-    );
+  const active = slides.find((s) => s.id === activeId) ?? null;
+  const activeIndex = active ? slides.indexOf(active) : -1;
+  const fullDeck = useMemo(() => buildDeck(slides, deck), [slides, deck]);
+  const dateLabel = new Date().toLocaleDateString("pt-BR");
 
-    if (!stillExists) {
-      setActiveSlideId(slides[0].id);
-    }
-  }, [slides, activeSlideId]);
-
-  const handleBack = () => {
-    router.navigate({
-      to: "/",
-    });
+  const addContent = () => {
+    p.startSelection();
+    router.navigate({ to: "/" });
   };
 
-  const handleAddManualSlide = () => {
-    addManualSlide();
-  };
-
-  const handleGeneratePowerPoint = async () => {
-  if (slides.length === 0) return;
-
-  try {
-    await generatePresentationPptx(slides);
-  } catch (error) {
-    console.error("Erro ao gerar PowerPoint:", error);
-  }
-};
-
-  const handlePrepareWithQualiAI = async () => {
-    if (slides.length === 0 || aiLoading) return;
-
-    setAiLoading(true);
-    setAiError(null);
-
+  const exportPptx = async () => {
+    if (!slides.length) return;
+    setExporting(true);
     try {
-      const result = await preparePresentationQualiAI({
-        data: {
-          prompt: aiPrompt.trim(),
-          preset: aiPreset,
-          slides: slides.map((slide) => ({
-            id: slide.id,
-            title: slide.title,
-            subtitle: slide.subtitle,
-            type: slide.type,
-            sourceRoute: slide.sourceRoute,
-            data: slide.data,
-          })),
-        },
+      await generatePresentationPptx(fullDeck, {
+        theme: deck.theme,
+        title: deck.title,
+        fileName: `${(deck.title || "Apresentacao").replace(/[^\w\-À-ú ]+/g, "").trim()}.pptx`,
       });
-
-      const plan = result.plan;
-
-      const titleUpdates = new Map(
-        plan.titleUpdates.map((update) => [update.id, update]),
-      );
-
-      const existingById = new Map(
-        slides.map((slide) => [slide.id, slide]),
-      );
-
-      // Reconstrói os slides EXISTENTES a partir dos IDs.
-      // Os dados originais nunca vêm da IA e nunca são substituídos.
-      const orderedExisting = plan.orderedSlideIds
-        .map((id) => {
-          const original = existingById.get(id);
-          if (!original) return null;
-
-          const update = titleUpdates.get(id);
-
-          return {
-            ...original,
-            title: update?.title?.trim() || original.title,
-            subtitle:
-              update?.subtitle?.trim() || original.subtitle || "",
-          };
-        })
-        .filter((slide): slide is NonNullable<typeof slide> => Boolean(slide));
-
-      const stamp = Date.now();
-
-      const supportSlides = plan.supportSlides.map((support, index) => ({
-        id: `qualiai-${stamp}-${index}`,
-        title: support.title,
-        subtitle: support.subtitle,
-        notes: support.notes,
-        type: "ai-summary" as const,
-        sourceRoute: "/apresentacao",
-        data: {
-          generatedBy: "QualiAI",
-          content: support.notes,
-        },
-      }));
-
-      const startSlides = supportSlides.filter(
-        (_, index) => plan.supportSlides[index]?.position === "start",
-      );
-
-      const endSlides = supportSlides.filter(
-        (_, index) => plan.supportSlides[index]?.position === "end",
-      );
-
-      const finalSlides = [
-        ...startSlides,
-        ...orderedExisting,
-        ...endSlides,
-      ];
-
-      setPresentationSlides(finalSlides);
-      setActiveSlideId(finalSlides[0]?.id ?? null);
-      setAiOpen(false);
-    } catch (error) {
-      console.error("Erro ao preparar apresentação com QualiAI:", error);
-      setAiError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível preparar a apresentação.",
-      );
+      toast.success("PowerPoint gerado. Tudo nele é editável (textos, gráficos e tabelas).");
+    } catch (e) {
+      console.error(e);
+      toast.error("Não foi possível gerar o PowerPoint.");
     } finally {
-      setAiLoading(false);
+      setExporting(false);
     }
   };
 
-  const handleRemoveSlide = (id: string) => {
-    const index = slides.findIndex((slide) => slide.id === id);
+  const presentFrom = (slideIndex: number) => setPresenting(slideIndex + (deck.cover ? 1 : 0));
 
-    const nextSlide =
-      slides[index + 1] ??
-      slides[index - 1] ??
-      null;
-
-    removeSlide(id);
-
-    if (activeSlideId === id) {
-      setActiveSlideId(nextSlide?.id ?? null);
-    }
-  };
+  if (slides.length === 0) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <section className="hero-panel p-10 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Presentation className="h-7 w-7" />
+          </div>
+          <h1 className="mt-5 font-display text-3xl font-bold">Monte sua apresentação</h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+            Clique em <strong>Adicionar conteúdo</strong>, navegue pelas telas do QualiHub e use o
+            botão <strong>Adicionar</strong> que aparece em cada card ou gráfico. Depois conclua a
+            seleção para editar, apresentar em tela cheia ou baixar um PowerPoint 100% editável.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Button onClick={addContent} className="gap-2">
+              <Plus className="h-4 w-4" /> Adicionar conteúdo
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setActiveId(p.addManualSlide())}
+              className="gap-2"
+            >
+              <FilePlus2 className="h-4 w-4" /> Começar com slide de texto
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto w-full max-w-[1800px] space-y-5">
-      {/* Cabeçalho */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-primary/10 text-primary">
-            <Presentation className="h-5 w-5" />
-          </div>
-
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-2xl font-bold tracking-tight">
-                Editor de Apresentação
-              </h2>
-
-              <Badge variant="secondary">
-                {slides.length}{" "}
-                {slides.length === 1 ? "slide" : "slides"}
-              </Badge>
-            </div>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Organize, edite e prepare os conteúdos antes de gerar o
-              PowerPoint.
-            </p>
-          </div>
+    <div className="space-y-4">
+      {/* Barra superior */}
+      <div className="surface flex flex-wrap items-center gap-3 px-4 py-3">
+        <Button variant="ghost" size="sm" onClick={() => router.history.back()} className="gap-1.5">
+          <ArrowLeft className="h-4 w-4" /> Voltar
+        </Button>
+        <div className="min-w-[220px] flex-1">
+          <Input
+            value={deck.title}
+            onChange={(e) => p.setDeck({ title: e.target.value })}
+            className="h-9 border-transparent bg-transparent font-display text-lg font-semibold shadow-none focus-visible:border-input"
+            aria-label="Título da apresentação"
+          />
         </div>
-
-        <div className="flex-1" />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
+        <div className="segmented">
+          <button
             type="button"
-            variant="outline"
-            onClick={handleBack}
-            className="gap-2"
+            data-active={deck.theme === "dark"}
+            onClick={() => p.setDeck({ theme: "dark" })}
           >
-            <ArrowLeft className="h-4 w-4" />
-            Voltar ao QualiHub
-          </Button>
-
-          <Button
+            <span className="inline-flex items-center gap-1">
+              <Moon className="h-3 w-3" /> Escuro
+            </span>
+          </button>
+          <button
             type="button"
-            variant="outline"
-            onClick={() => {
-              setAiError(null);
-              setAiOpen(true);
-            }}
-            disabled={slides.length === 0}
-            className="gap-2 border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
+            data-active={deck.theme === "light"}
+            onClick={() => p.setDeck({ theme: "light" })}
           >
-            <Sparkles className="h-4 w-4" />
-            Criar com QualiAI
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleAddManualSlide}
-            className="gap-2"
-          >
-            <FilePlus2 className="h-4 w-4" />
-            Novo slide
-          </Button>
-
-<Button
-  type="button"
-  onClick={handleGeneratePowerPoint}
-  disabled={slides.length === 0}
-  className="gap-2"
->
-  <Presentation className="h-4 w-4" />
-  Gerar PowerPoint
-</Button>
+            <span className="inline-flex items-center gap-1">
+              <Sun className="h-3 w-3" /> Claro
+            </span>
+          </button>
         </div>
+        <Button variant="outline" size="sm" onClick={addContent} className="gap-1.5">
+          <Plus className="h-4 w-4" /> Adicionar conteúdo
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setActiveId(p.addManualSlide())}
+          className="gap-1.5"
+        >
+          <FilePlus2 className="h-4 w-4" /> Slide de texto
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setAiOpen(true)}
+          className="gap-1.5 border-primary/30 text-primary"
+        >
+          <Sparkles className="h-4 w-4" /> Preparar com QualiAI
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setPresenting(0)} className="gap-1.5">
+          <MonitorPlay className="h-4 w-4" /> Apresentar
+        </Button>
+        <Button size="sm" onClick={exportPptx} disabled={exporting} className="gap-1.5">
+          {exporting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Baixar PowerPoint
+        </Button>
       </div>
 
-      {/* Estado vazio */}
-      {slides.length === 0 ? (
-        <div className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl border border-dashed bg-card/40 px-6 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <Presentation className="h-8 w-8" />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[250px_1fr_320px]">
+        {/* Miniaturas */}
+        <aside className="surface max-h-[calc(100vh-180px)] overflow-y-auto p-3">
+          <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <span>Slides</span>
+            <span>{fullDeck.length}</span>
           </div>
-
-          <h3 className="text-xl font-semibold">
-            Nenhum conteúdo na apresentação
-          </h3>
-
-          <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-            Volte ao QualiHub e use o botão "Criar apresentação" para
-            selecionar gráficos, indicadores e outros conteúdos.
-          </p>
-
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button
-              type="button"
-              onClick={handleBack}
-              className="gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Selecionar conteúdos
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleAddManualSlide}
-              className="gap-2"
-            >
-              <FilePlus2 className="h-4 w-4" />
-              Criar slide manual
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid min-h-[720px] overflow-hidden rounded-2xl border bg-card shadow-sm xl:grid-cols-[280px_minmax(0,1fr)]">
-          {/* COLUNA ESQUERDA */}
-          <aside className="border-b bg-muted/10 xl:border-b-0 xl:border-r">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <div>
-                <div className="text-sm font-semibold">
-                  Slides
+          <div className="space-y-2.5">
+            {deck.cover && (
+              <ThumbStatic
+                label="Capa"
+                theme={deck.theme}
+                slide={coverSlide(deck)}
+                onClick={() => setPresenting(0)}
+              />
+            )}
+            {slides.map((s, i) => (
+              <div
+                key={s.id}
+                draggable
+                onDragStart={() => setDragId(s.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (dragId && dragId !== s.id) p.moveSlide(dragId, i);
+                  setDragId(null);
+                }}
+                onClick={() => setActiveId(s.id)}
+                className={cn(
+                  "group relative cursor-pointer rounded-xl border-2 p-1 transition",
+                  s.id === activeId ? "border-primary" : "border-transparent hover:border-border",
+                  dragId === s.id && "opacity-40",
+                )}
+              >
+                <div className="pointer-events-none overflow-hidden rounded-lg border">
+                  <SlideFrame>
+                    <SlideCanvas
+                      title={s.title}
+                      subtitle={s.subtitle}
+                      spec={ensureSpec(s)}
+                      theme={deck.theme}
+                      index={i + 1}
+                      total={slides.length}
+                    />
+                  </SlideFrame>
                 </div>
-
-                <div className="text-[11px] text-muted-foreground">
-                  {slides.length} na apresentação
+                <div className="mt-1 flex items-center gap-1.5 px-1 text-[11px]">
+                  <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="font-semibold tabular-nums text-muted-foreground">{i + 1}</span>
+                  <span className="truncate">{s.title}</span>
                 </div>
               </div>
+            ))}
+            {deck.closing && (
+              <ThumbStatic
+                label="Encerramento"
+                theme={deck.theme}
+                slide={closingSlide()}
+                onClick={() => setPresenting(fullDeck.length - 1)}
+              />
+            )}
+          </div>
+        </aside>
 
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={handleAddManualSlide}
-                title="Novo slide"
-              >
-                <FilePlus2 className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="max-h-[680px] space-y-3 overflow-y-auto p-3">
-              {slides.map((slide, index) => {
-                const selected =
-                  activeSlide?.id === slide.id;
-
-                return (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    onClick={() =>
-                      setActiveSlideId(slide.id)
-                    }
-                    className={cn(
-                      "group w-full rounded-xl border p-2 text-left transition-all",
-                      selected
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : "border-border bg-background hover:border-primary/40 hover:bg-muted/20",
-                    )}
-                  >
-                    <div className="mb-2 flex items-center gap-2">
-                      <div
-                        className={cn(
-                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold",
-                          selected
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {index + 1}
-                      </div>
-
-                      <div className="min-w-0 flex-1 truncate text-[11px] font-semibold">
-                        {slide.title || "Slide sem título"}
-                      </div>
-                    </div>
-
-                    {/* Miniatura */}
-                    <div className="pointer-events-none overflow-hidden rounded-md border bg-background">
-                      <div className="origin-top-left">
-                        <PresentationSlidePreview
-                          slide={slide}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="truncate text-[9px] text-muted-foreground">
-                        {slide.type === "manual"
-                          ? "Manual"
-                          : slide.sourceRoute ?? "QualiHub"}
-                      </span>
-
-                      <Badge
-                        variant="outline"
-                        className="h-5 px-1.5 text-[8px]"
-                      >
-                        {slide.type}
-                      </Badge>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
-
-          {/* ÁREA PRINCIPAL */}
-          {activeSlide && (
-            <section className="min-w-0">
-              {/* Barra do slide ativo */}
-              <div className="flex flex-wrap items-center gap-3 border-b bg-muted/20 px-5 py-3">
-                <div className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary/10 px-2 text-xs font-bold text-primary">
-                  {activeIndex + 1}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">
-                    {activeSlide.title ||
-                      "Slide sem título"}
-                  </div>
-
-                  <div className="text-[10px] text-muted-foreground">
-                    {activeSlide.type === "manual"
-                      ? "Slide manual"
-                      : `Origem: ${
-                          activeSlide.sourceRoute ??
-                          "QualiHub"
-                        }`}
-                  </div>
-                </div>
-
-                <Badge variant="outline">
-                  {activeSlide.type}
-                </Badge>
-
+        {/* Slide ativo */}
+        <main className="space-y-3">
+          {active && (
+            <>
+              <div className="overflow-hidden rounded-2xl border shadow-lg">
+                <SlideFrame>
+                  <SlideCanvas
+                    title={active.title}
+                    subtitle={active.subtitle}
+                    spec={ensureSpec(active)}
+                    theme={deck.theme}
+                    index={activeIndex + 1}
+                    total={slides.length}
+                    dateLabel={dateLabel}
+                  />
+                </SlideFrame>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
                   <Button
-                    type="button"
-                    size="icon"
+                    size="sm"
                     variant="ghost"
+                    onClick={() => p.moveSlideUp(active.id)}
                     disabled={activeIndex === 0}
-                    onClick={() =>
-                      moveSlideUp(activeSlide.id)
-                    }
-                    title="Mover slide para cima"
+                    title="Mover para cima"
                   >
                     <ArrowUp className="h-4 w-4" />
                   </Button>
-
                   <Button
-                    type="button"
-                    size="icon"
+                    size="sm"
                     variant="ghost"
-                    disabled={
-                      activeIndex === slides.length - 1
-                    }
-                    onClick={() =>
-                      moveSlideDown(activeSlide.id)
-                    }
-                    title="Mover slide para baixo"
+                    onClick={() => p.moveSlideDown(active.id)}
+                    disabled={activeIndex === slides.length - 1}
+                    title="Mover para baixo"
                   >
                     <ArrowDown className="h-4 w-4" />
                   </Button>
-
                   <Button
-                    type="button"
-                    size="icon"
+                    size="sm"
                     variant="ghost"
-                    onClick={() =>
-                      handleRemoveSlide(activeSlide.id)
-                    }
-                    className="text-destructive hover:text-destructive"
+                    onClick={() => p.duplicateSlide(active.id)}
+                    title="Duplicar"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => p.removeSlide(active.id)}
                     title="Excluir slide"
+                    className="text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => presentFrom(activeIndex)}
+                >
+                  <MonitorPlay className="h-4 w-4" /> Apresentar a partir daqui
+                </Button>
               </div>
-
-              <div className="grid gap-6 p-5 2xl:grid-cols-[minmax(0,1.45fr)_380px]">
-                {/* Preview grande */}
-                <div className="min-w-0">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Visualização
-                    </span>
-
-                    <span className="text-[10px] text-muted-foreground">
-                      16:9
-                    </span>
-                  </div>
-
-                  <div className="flex min-h-[430px] items-center justify-center rounded-xl border bg-muted/20 p-5">
-                    <div className="w-full max-w-5xl">
-                      <PresentationSlidePreview
-                        slide={activeSlide}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Propriedades */}
-                <div className="min-w-0">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Propriedades do slide
-                  </div>
-
-                  <div className="space-y-5 rounded-xl border bg-background p-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold">
-                        Título
-                      </label>
-
-                      <input
-                        type="text"
-                        value={activeSlide.title}
-                        onChange={(event) =>
-                          updateSlide(activeSlide.id, {
-                            title: event.target.value,
-                          })
-                        }
-                        placeholder="Título do slide"
-                        className="h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold">
-                        Subtítulo
-                      </label>
-
-                      <input
-                        type="text"
-                        value={activeSlide.subtitle ?? ""}
-                        onChange={(event) =>
-                          updateSlide(activeSlide.id, {
-                            subtitle: event.target.value,
-                          })
-                        }
-                        placeholder="Subtítulo opcional"
-                        className="h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold">
-                        Observações
-                      </label>
-
-                      <textarea
-                        value={activeSlide.notes}
-                        onChange={(event) =>
-                          updateSlide(activeSlide.id, {
-                            notes: event.target.value,
-                          })
-                        }
-                        placeholder="Adicione comentários, destaques ou informações para a reunião..."
-                        rows={8}
-                        className="w-full resize-y rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Tipo de conteúdo
-                      </div>
-
-                      <div className="mt-1 text-sm font-medium">
-                        {activeSlide.type}
-                      </div>
-
-                      {activeSlide.sourceRoute && (
-                        <>
-                          <div className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Origem
-                          </div>
-
-                          <div className="mt-1 text-sm font-medium">
-                            {activeSlide.sourceRoute}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+            </>
           )}
-        </div>
-      )}
+        </main>
 
-      {aiOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setAiOpen(false);
-          }}
-        >
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border bg-background shadow-2xl">
-            <div className="flex items-start gap-3 border-b p-5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Sparkles className="h-5 w-5" />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-bold">
-                  Criar apresentação com QualiAI
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Organize a narrativa da reunião sem alterar os dados originais do QualiHub.
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => setAiOpen(false)}
-                disabled={aiLoading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+        {/* Propriedades */}
+        <aside className="surface space-y-4 p-4">
+          {active && (
+            <SlideEditor slide={active} onChange={(patch) => p.updateSlide(active.id, patch)} />
+          )}
+          <div className="space-y-3 border-t pt-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Apresentação
             </div>
-
-            <div className="space-y-5 p-5">
-              <div>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Tipo de reunião
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {[
-                    ["diaria", "Reunião Diária"],
-                    ["mensal", "Reunião Mensal"],
-                    ["fornecedor", "Fornecedor"],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() =>
-                        setAiPreset(value as "diaria" | "mensal" | "fornecedor")
-                      }
-                      className={cn(
-                        "rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-colors",
-                        aiPreset === value
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "bg-card hover:border-primary/40",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  O que você quer apresentar?
-                </label>
-
-                <textarea
-                  value={aiPrompt}
-                  onChange={(event) => setAiPrompt(event.target.value)}
-                  rows={5}
-                  placeholder="Ex.: Prepare minha reunião mensal destacando eficiência, NC, PPM, Pareto e QLD/QLDE. Termine com pontos de atenção e próximos passos."
-                  className="w-full resize-y rounded-xl border bg-background px-4 py-3 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              {aiError && (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                  {aiError}
-                </div>
-              )}
-
-              <div className="rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground">
-                <strong className="text-foreground">Proteção dos indicadores:</strong>{" "}
-                os valores e dados estruturados dos slides existentes são preservados.
-                O QualiAI atua na organização, narrativa e slides de apoio.
-              </div>
+            <div className="space-y-1.5">
+              <Label>Subtítulo da capa</Label>
+              <Input
+                value={deck.subtitle}
+                onChange={(e) => p.setDeck({ subtitle: e.target.value })}
+              />
             </div>
-
-            <div className="flex flex-wrap justify-end gap-2 border-t bg-muted/10 p-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAiOpen(false)}
-                disabled={aiLoading}
-              >
-                Cancelar
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handlePrepareWithQualiAI}
-                disabled={aiLoading}
-                className="gap-2"
-              >
-                {aiLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {aiLoading
-                  ? "QualiAI preparando..."
-                  : "Preparar apresentação"}
-              </Button>
-            </div>
+            <label className="flex items-center justify-between text-sm">
+              Capa
+              <Switch checked={deck.cover} onCheckedChange={(v) => p.setDeck({ cover: v })} />
+            </label>
+            <label className="flex items-center justify-between text-sm">
+              Slide de encerramento
+              <Switch checked={deck.closing} onCheckedChange={(v) => p.setDeck({ closing: v })} />
+            </label>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-destructive"
+              onClick={() => {
+                if (confirm("Remover todos os slides da apresentação?")) p.clearSlides();
+              }}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" /> Limpar apresentação
+            </Button>
           </div>
+        </aside>
+      </div>
+
+      {presenting !== null && (
+        <SlidePresenter
+          slides={fullDeck}
+          theme={deck.theme}
+          startAt={Math.min(presenting, fullDeck.length - 1)}
+          fileName={`${deck.title || "Apresentacao"}.pptx`}
+          onClose={() => setPresenting(null)}
+        />
+      )}
+      <QualiAIDialog
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        onDone={(firstId) => firstId && setActiveId(firstId)}
+      />
+    </div>
+  );
+}
+
+function ThumbStatic({
+  label,
+  theme,
+  slide,
+  onClick,
+}: {
+  label: string;
+  theme: "dark" | "light";
+  slide: { title: string; spec: SlideSpec };
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className="cursor-pointer rounded-xl border-2 border-transparent p-1 opacity-80 hover:border-border"
+    >
+      <div className="pointer-events-none overflow-hidden rounded-lg border">
+        <SlideFrame>
+          <SlideCanvas title={slide.title} spec={slide.spec} theme={theme} />
+        </SlideFrame>
+      </div>
+      <div className="mt-1 px-1 text-[11px] italic text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function SlideEditor({
+  slide,
+  onChange,
+}: {
+  slide: PresentationSlide;
+  onChange: (
+    patch: Partial<Pick<PresentationSlide, "title" | "subtitle" | "notes" | "spec">>,
+  ) => void;
+}) {
+  const spec = ensureSpec(slide);
+  return (
+    <div className="space-y-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        Slide selecionado
+      </div>
+      <div className="space-y-1.5">
+        <Label>Título</Label>
+        <Input value={slide.title} onChange={(e) => onChange({ title: e.target.value })} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Subtítulo</Label>
+        <Input
+          value={slide.subtitle ?? ""}
+          onChange={(e) => onChange({ subtitle: e.target.value })}
+        />
+      </div>
+
+      {spec.type === "text" && (
+        <div className="space-y-1.5">
+          <Label>Tópicos (um por linha)</Label>
+          <Textarea
+            rows={7}
+            value={spec.bullets.join("\n")}
+            onChange={(e) =>
+              onChange({ spec: { type: "text", bullets: e.target.value.split("\n") } })
+            }
+          />
         </div>
       )}
+
+      {spec.type === "chart" && (
+        <div className="space-y-2">
+          <Label>Tipo de gráfico</Label>
+          <div className="grid grid-cols-4 gap-1">
+            {CHART_KINDS.filter((k) => k.value !== "combo" || spec.chart.kind === "combo").map(
+              (k) => (
+                <button
+                  key={k.value}
+                  type="button"
+                  onClick={() =>
+                    onChange({ spec: { ...spec, chart: { ...spec.chart, kind: k.value } } })
+                  }
+                  className={cn(
+                    "rounded-md border px-1.5 py-1 text-[11px] font-medium transition",
+                    spec.chart.kind === k.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "hover:bg-muted",
+                  )}
+                >
+                  {k.label}
+                </button>
+              ),
+            )}
+          </div>
+          <label className="flex items-center justify-between text-sm">
+            Mostrar valores
+            <Switch
+              checked={spec.chart.showValues ?? spec.chart.categories.length <= 14}
+              onCheckedChange={(v) =>
+                onChange({ spec: { ...spec, chart: { ...spec.chart, showValues: v } } })
+              }
+            />
+          </label>
+        </div>
+      )}
+
+      {spec.type === "kpis" && (
+        <div className="space-y-2">
+          <Label>Indicadores</Label>
+          {spec.items.map((k, i) => (
+            <div key={i} className="grid grid-cols-2 gap-1.5 rounded-lg border p-2">
+              <Input
+                value={k.label}
+                className="h-8 text-xs"
+                onChange={(e) => {
+                  const items = spec.items.map((x, j) =>
+                    j === i ? { ...x, label: e.target.value } : x,
+                  );
+                  onChange({ spec: { type: "kpis", items } });
+                }}
+              />
+              <Input
+                value={k.value}
+                className="h-8 text-xs font-semibold"
+                onChange={(e) => {
+                  const items = spec.items.map((x, j) =>
+                    j === i ? { ...x, value: e.target.value } : x,
+                  );
+                  onChange({ spec: { type: "kpis", items } });
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <Label>Anotações do apresentador</Label>
+        <Textarea
+          rows={3}
+          value={slide.notes}
+          onChange={(e) => onChange({ notes: e.target.value })}
+          placeholder="Vão para as anotações do PowerPoint."
+        />
+      </div>
     </div>
+  );
+}
+
+function QualiAIDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: (firstId?: string) => void;
+}) {
+  const { slides, setPresentationSlides, setDeck } = usePresentation();
+  const [prompt, setPrompt] = useState("");
+  const [preset, setPreset] = useState<"diaria" | "mensal" | "fornecedor" | null>("mensal");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { plan } = await preparePresentationQualiAI({
+        data: {
+          prompt: prompt.trim(),
+          preset,
+          slides: slides.map((s) => ({
+            id: s.id,
+            title: s.title,
+            subtitle: s.subtitle,
+            type: s.type,
+            sourceRoute: s.sourceRoute,
+            data: s.spec ?? s.data,
+          })),
+        },
+      });
+      const updates = new Map(plan.titleUpdates.map((u) => [u.id, u]));
+      const byId = new Map(slides.map((s) => [s.id, s]));
+      const ordered = plan.orderedSlideIds
+        .map((id) => byId.get(id))
+        .filter((s): s is PresentationSlide => Boolean(s))
+        .map((s) => {
+          const u = updates.get(s.id);
+          return {
+            ...s,
+            title: u?.title?.trim() || s.title,
+            subtitle: u?.subtitle?.trim() || s.subtitle || "",
+          };
+        });
+      const stamp = Date.now();
+      const support = (pos: "start" | "end") =>
+        plan.supportSlides
+          .filter((x) => x.position === pos)
+          .map((x, i) => ({
+            id: `qualiai-${pos}-${stamp}-${i}`,
+            title: x.title,
+            subtitle: x.subtitle,
+            notes: "",
+            type: "ai-summary" as const,
+            sourceRoute: "/apresentacao",
+            spec: textSpec(x.notes),
+          }));
+      const final = [...support("start"), ...ordered, ...support("end")];
+      setPresentationSlides(final);
+      if (plan.presentationTitle)
+        setDeck({ title: plan.presentationTitle, subtitle: plan.presentationSubtitle || "" });
+      toast.success("Apresentação organizada pelo QualiAI.");
+      onDone(final[0]?.id);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível preparar a apresentação.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" /> Preparar com QualiAI
+          </DialogTitle>
+          <DialogDescription>
+            O QualiAI organiza a ordem, melhora títulos e cria slides de análise usando só os dados
+            selecionados.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="segmented flex w-full">
+          {(
+            [
+              ["diaria", "Reunião diária"],
+              ["mensal", "Reunião mensal"],
+              ["fornecedor", "Fornecedor"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className="flex-1"
+              data-active={preset === value}
+              onClick={() => setPreset(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <Textarea
+          rows={4}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Ex.: comece pelos indicadores, destaque fornecedores críticos e feche com plano de ação."
+        />
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={run} disabled={loading} className="gap-2">
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}{" "}
+            Preparar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

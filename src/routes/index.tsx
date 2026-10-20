@@ -30,6 +30,9 @@ import {
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { kpiSpec, tableSpec } from "@/lib/slide-spec";
+import { cn } from "@/lib/utils";
+import { calcPPM } from "@/lib/idf-calc";
 import { useDashboardFiltered } from "@/hooks/use-data";
 import { useFilters } from "@/hooks/use-dashboard";
 import {
@@ -41,6 +44,7 @@ import {
   DeltaBadge,
   EmptyState,
   EficienciaInspecaoCard,
+  PpmMensalCard,
 } from "@/components/dashboard-ui";
 import { Button } from "@/components/ui/button";
 import { PresentationSelectable } from "@/components/presentation-selectable";
@@ -363,8 +367,20 @@ const metaNC = 2.0;
     return { rows, totCriadas, totIniciadas, totEfic, year: source[0]?.year };
   }, [efficiency]);
 
-  const top5 = ranking.slice(0, 5);
-  const bottom5 = [...ranking].reverse().slice(0, 5);
+  // Ranking ponderado pelo volume recebido (limite de Wilson, 95%):
+  // quem entrega muito com poucas reprovações sobe nos melhores; quem reprova
+  // muito em relação ao que entrega sobe nos piores. Assim um fornecedor com
+  // 15 entregas sem problema não passa à frente de um com 3.000 entregas e 5 NC.
+  const top5 = [...ranking]
+    .filter((r) => r.total > 0)
+    .map((r) => ({ ...r, score: wilsonLower(r.total - r.re, r.total) }))
+    .sort((a, b) => b.score - a.score || b.total - a.total)
+    .slice(0, 5);
+  const bottom5 = [...ranking]
+    .filter((r) => r.re > 0)
+    .map((r) => ({ ...r, score: wilsonLower(r.re, r.total) }))
+    .sort((a, b) => b.score - a.score || b.re - a.re)
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -377,6 +393,14 @@ const metaNC = 2.0;
           subtitle: "IDF, PPM, inspeções, aprovados, condicionais e reprovados",
           type: "kpi-group",
           sourceRoute: "/",
+          spec: kpiSpec([
+            { label: "IDF Global", value: `${idfGlobal.toLocaleString("pt-BR")}%`, hint: "Aprovados / total", tone: "green" },
+            { label: "PPM", value: calcPPM(idf).ppm.toLocaleString("pt-BR"), hint: "Peças NC ÷ peças inspecionadas", tone: "purple" },
+            { label: "Inspeções", value: totalInsp.toLocaleString("pt-BR"), hint: "no período", tone: "neutral" },
+            { label: "Aprovados", value: aprov.toLocaleString("pt-BR"), tone: "green" },
+            { label: "Condicionais", value: cond.toLocaleString("pt-BR"), tone: "amber" },
+            { label: "Reprovados", value: repr.toLocaleString("pt-BR"), tone: "red" },
+          ]),
           data: {
             idfGlobal,
             inspecoes: totalInsp,
@@ -437,9 +461,20 @@ const metaNC = 2.0;
         item={{
           id: "consolidado-kpis-operacionais",
           title: "Indicadores operacionais",
-          subtitle: "Eficiência, fornecedores, alertas, pendências e RNCs",
+          subtitle: "Eficiência, fornecedores, alertas, PPM mensal e RNCs",
           type: "kpi-group",
           sourceRoute: "/",
+          spec: kpiSpec([
+            {
+              label: "Eficiência de inspeção",
+              value: `${efficiency.percentual.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`,
+              hint: `${efficiency.inspecionadas.toLocaleString("pt-BR")} de ${efficiency.recebidas.toLocaleString("pt-BR")} recebidas`,
+              tone: efficiency.percentual >= 95 ? "green" : "amber",
+            },
+            { label: "Fornecedores", value: ranking.length.toLocaleString("pt-BR"), hint: "Fornecedores ativos", tone: "neutral" },
+            { label: "Alertas (AQ)", value: alertas.length.toLocaleString("pt-BR"), hint: "Ocorrências detectadas", tone: "amber" },
+            { label: "RNCs", value: rncs.length.toLocaleString("pt-BR"), hint: "Em acompanhamento", tone: "blue" },
+          ]),
           data: {
             eficiencia: {
               recebidas: efficiency.recebidas,
@@ -448,7 +483,6 @@ const metaNC = 2.0;
             },
             fornecedores: ranking.length,
             alertas: alertas.length,
-            alertasPendentes: alertas.filter((a) => !a.finalizado).length,
             rncs: rncs.length,
           },
         }}
@@ -480,22 +514,7 @@ const metaNC = 2.0;
           }
           onClick={() => setDrilldown("alertas")}
         />
-        <KpiCard
-          label="AQ Pendentes"
-          value={alertas.filter((a) => !a.finalizado).length}
-          hint="Aguardando tratativa"
-          tone="destructive"
-          icon={<Siren className="h-4 w-4" />}
-          delta={
-            prev ? (
-              <DeltaBadge
-                current={alertas.filter((a) => !a.finalizado).length}
-                previous={prev.aqPend}
-                invert
-              />
-            ) : undefined
-          }
-        />
+        <PpmMensalCard rows={efficiency.baseRows} />
         <KpiCard
           label="RNCs"
           value={rncs.length}
@@ -1220,38 +1239,42 @@ const metaNC = 2.0;
         item={{
           id: "consolidado-ranking-fornecedores",
           title: "Ranking de Fornecedores",
-          subtitle: "Top 5 melhores e Top 5 piores fornecedores",
+          subtitle: "Ponderado pelo volume recebido: mais entregas com menos reprovações",
           type: "ranking",
           sourceRoute: "/",
+          spec: tableSpec(
+            ["#", "Melhores (volume × reprovações)", "Insp.", "Reprov.", "Piores (volume × reprovações)", "Insp.", "Reprov."],
+            Array.from({ length: Math.max(top5.length, bottom5.length) }, (_, i) => [
+              String(i + 1),
+              top5[i]?.f ?? "",
+              top5[i] ? top5[i].total.toLocaleString("pt-BR") : "",
+              top5[i] ? `${top5[i].re} (${pctNC(top5[i])})` : "",
+              bottom5[i]?.f ?? "",
+              bottom5[i] ? bottom5[i].total.toLocaleString("pt-BR") : "",
+              bottom5[i] ? `${bottom5[i].re} (${pctNC(bottom5[i])})` : "",
+            ]),
+          ),
           data: { melhores: top5, piores: bottom5 },
         }}
       >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard
           printable
-          printTitle="Top 5 Melhores Fornecedores"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-400" />
-              <Award className="h-4 w-4 text-emerald-400" />
-              Top 5 Melhores Fornecedores
-            </span>
-          }
+          printTitle="Top 5 Melhores Fornecedores — maior volume recebido com menos reprovações"
+          icon={<Trophy className="h-4 w-4 text-success" />}
+          title="Top 5 Melhores Fornecedores"
+          subtitle="Mais entregas recebidas com menos reprovações"
         >
-          <RankingTable rows={top5} />
+          <RankingTable rows={top5} tone="good" />
         </SectionCard>
         <SectionCard
           printable
-          printTitle="Top 5 Piores Fornecedores"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <Siren className="h-4 w-4 text-red-400" />
-              <ShieldAlert className="h-4 w-4 text-orange-400" />
-              Top 5 Piores Fornecedores
-            </span>
-          }
+          printTitle="Top 5 Piores Fornecedores — mais reprovações em relação ao volume recebido"
+          icon={<Siren className="h-4 w-4 text-destructive" />}
+          title="Top 5 Piores Fornecedores"
+          subtitle="Mais reprovações em relação ao volume recebido"
         >
-          <RankingTable rows={bottom5} />
+          <RankingTable rows={bottom5} tone="bad" />
         </SectionCard>
       </div>
       </PresentationSelectable>
@@ -1275,9 +1298,25 @@ const metaNC = 2.0;
   );
 }
 
+/** Limite inferior de Wilson (95%) para uma proporção: favorece amostras grandes. */
+function wilsonLower(sucessos: number, total: number) {
+  if (total <= 0) return 0;
+  const z = 1.96;
+  const p = sucessos / total;
+  const den = 1 + (z * z) / total;
+  const centro = p + (z * z) / (2 * total);
+  const margem = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * total)) / total);
+  return (centro - margem) / den;
+}
+
+const pctNC = (r: { re: number; total: number }) =>
+  `${((r.re / Math.max(r.total, 1)) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+
 function RankingTable({
   rows,
+  tone,
 }: {
+  tone: "good" | "bad";
   rows: Array<{
     f: string;
     total: number;
@@ -1292,40 +1331,68 @@ function RankingTable({
   }>;
 }) {
   if (rows.length === 0) return <EmptyState />;
+  const maxTotal = Math.max(...rows.map((r) => r.total), 1);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground border-b">
-            <th className="py-2 pr-2">#</th>
-            <th className="py-2 pr-2">Fornecedor</th>
-            <th className="py-2 pr-2 text-right">IDF%</th>
-            <th className="py-2 pr-2 text-center">Classif.</th>
-            <th className="py-2 pr-2 text-right">Insp.</th>
-            <th className="py-2 pr-2 text-right">AQ</th>
-            <th className="py-2 pr-2 text-right">RNC</th>
-            <th className="py-2 pr-2 text-center">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.f} className="border-b last:border-0 hover:bg-muted/40">
-              <td className="py-2 pr-2 tabular-nums">{i + 1}</td>
-              <td className="py-2 pr-2 font-medium">{r.f}</td>
-              <td className="py-2 pr-2 text-right tabular-nums font-semibold">{r.pct}%</td>
-              <td className="py-2 pr-2 text-center">
-                <ClassBadge c={r.cls} />
-              </td>
-              <td className="py-2 pr-2 text-right tabular-nums">{r.total}</td>
-              <td className="py-2 pr-2 text-right tabular-nums">{r.al}</td>
-              <td className="py-2 pr-2 text-right tabular-nums">{r.rn}</td>
-              <td className="py-2 pr-2 text-center">
-                <StatusDot status={r.status} />
-              </td>
+    <div className="space-y-3">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+              <th className="py-2 pr-2">#</th>
+              <th className="py-2 pr-2">Fornecedor</th>
+              <th className="py-2 pr-2">Recebido (insp.)</th>
+              <th className="py-2 pr-2 text-right">Reprov.</th>
+              <th className="py-2 pr-2 text-right">Taxa NC</th>
+              <th className="py-2 pr-2 text-right">AQ</th>
+              <th className="py-2 pr-2 text-right">RNC</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.f} className="border-b last:border-0 hover:bg-muted/40">
+                <td className="py-2 pr-2">
+                  <span
+                    className={cn(
+                      "inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold",
+                      tone === "good" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
+                    )}
+                  >
+                    {i + 1}
+                  </span>
+                </td>
+                <td className="py-2 pr-2 font-semibold">{r.f}</td>
+                <td className="py-2 pr-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-[var(--chart-rnc)]"
+                        style={{ width: `${(r.total / maxTotal) * 100}%` }}
+                      />
+                    </div>
+                    <span className="tabular-nums">{r.total.toLocaleString("pt-BR")}</span>
+                  </div>
+                </td>
+                <td className="py-2 pr-2 text-right font-semibold tabular-nums">{r.re}</td>
+                <td
+                  className={cn(
+                    "py-2 pr-2 text-right font-semibold tabular-nums",
+                    tone === "good" ? "text-success" : "text-destructive",
+                  )}
+                >
+                  {pctNC(r)}
+                </td>
+                <td className="py-2 pr-2 text-right tabular-nums">{r.al}</td>
+                <td className="py-2 pr-2 text-right tabular-nums">{r.rn}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        {tone === "good"
+          ? "Considera o volume recebido: entregar muito com poucas reprovações vale mais do que entregar pouco sem problema."
+          : "Considera o volume recebido: pesa quem reprova muito em relação ao que entrega, não só quem entrega pouco."}
+      </p>
     </div>
   );
 }

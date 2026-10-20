@@ -113,14 +113,21 @@ export type FornecedorScore = {
 };
 
 export type QLDQLDERow = {
+  /** Linha na aba QLD-QLDE (1 = cabeçalho). Usada como dica para gravar. */
+  row: number;
   item: string;
   qtdeBloqueada: number;
   valorBloqueado: number;
   qtdeLivre: number;
   valorLivre: number;
   deposito: string;
+  motivo: string;
   acao: string;
   check: string;
+  /** Check marcado = item resolvido: sai dos totais e vai para o histórico. */
+  finalizado: boolean;
+  finalizadoEm: string;
+  finalizadoPor: string;
   atencao: string;
 };
 

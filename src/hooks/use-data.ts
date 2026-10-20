@@ -1,18 +1,37 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { decodeDashboard } from "@/lib/wire";
 import { useServerFn } from "@tanstack/react-start";
 import { getDashboardData } from "@/lib/sheets.functions";
 import { useFilteredData } from "@/hooks/use-dashboard";
 import type { DashboardData } from "@/lib/types";
 
-export function useDashboard(): DashboardData | undefined {
+/** Consulta única do painel (compartilhada por todas as telas). */
+export function useDashboardQuery() {
   const fetchData = useServerFn(getDashboardData);
-  const q = useQuery({
+  return useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => fetchData(),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    queryFn: async () => decodeDashboard((await fetchData({ data: {} })).payload),
+    staleTime: 2 * 60_000,
+    refetchInterval: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    // ~28 mil linhas: comparar estruturas a cada leitura custa mais do que trocar o objeto.
+    structuralSharing: false,
   });
-  return q.data;
+}
+
+/** Busca os dados direto da planilha, ignorando o cache do servidor (botão Atualizar). */
+export function useForceRefreshDashboard() {
+  const fetchData = useServerFn(getDashboardData);
+  const qc = useQueryClient();
+  return async () => {
+    const data = decodeDashboard((await fetchData({ data: { force: true } })).payload);
+    qc.setQueryData(["dashboard"], data);
+    return data;
+  };
+}
+
+export function useDashboard(): DashboardData | undefined {
+  return useDashboardQuery().data;
 }
 
 export function useDashboardFiltered() {

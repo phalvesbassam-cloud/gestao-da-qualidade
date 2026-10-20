@@ -356,7 +356,8 @@ function calculateInspectionEfficiency(
     recebidas,
     inspecionadas,
     pendentes: recebidasRows.filter((row) => !parseBrDate(row.dataInicioInsp)).length,
-    percentual: inspecionadas > 0 ? (recebidas / inspecionadas) * 100 : 0,
+    // Mesma regra do gráfico mensal: inspecionadas ÷ recebidas.
+    percentual: recebidas > 0 ? (inspecionadas / recebidas) * 100 : 0,
     baseRows,
     recebidasRows,
     inspecionadasRows,
@@ -508,8 +509,6 @@ const DEFAULT_TV_TABS: TvTab[] = [
 
   { to: "/alerta", label: "Alertas", durationMs: 60_000, enabled: true },
   { to: "/rnc", label: "RNC", durationMs: 90_000, enabled: true },
-  { to: "/acoes", label: "Riscos e Ações", durationMs: 90_000, enabled: true },
-  { to: "/timeline", label: "Tendências", durationMs: 90_000, enabled: true },
 ];
 
 export function useTvController(
