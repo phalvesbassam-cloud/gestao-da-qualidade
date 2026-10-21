@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  HeartHandshake,
   ArrowLeft,
   ArrowRight,
   Camera,
@@ -22,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -39,7 +41,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PrintButton } from "@/components/dashboard-ui";
-import { uploadOrgFoto } from "@/lib/sheets.functions";
 import {
   LIDERANCA,
   ORG_PADRAO,
@@ -56,6 +57,7 @@ import {
   type Pessoa,
 } from "@/lib/org";
 import { cn } from "@/lib/utils";
+import { PCD_TIPOS, PcdSelo } from "@/components/pcd";
 import logoFrasle from "@/assets/print/frasle-mobility.png";
 import logoRandon from "@/assets/print/randoncorp.png";
 
@@ -198,6 +200,12 @@ function OrganogramaPage() {
                 <Users className="h-3 w-3" /> {total} pessoas
               </span>
               <span className="chip">{org.areas.length} áreas</span>
+              {org.pessoas.some((p) => p.pcd) && (
+                <span className="chip" title="Pessoas com deficiência na equipe">
+                  <HeartHandshake className="h-3 w-3 text-info" /> Inclusão:{" "}
+                  {org.pessoas.filter((p) => p.pcd).length} PCD
+                </span>
+              )}
               {atualizado && !Number.isNaN(atualizado.getTime()) && (
                 <span className="chip">
                   Atualizado em {atualizado.toLocaleDateString("pt-BR")}
@@ -560,6 +568,13 @@ function PessoaCard({
           {pessoa.nomeCompleto}
         </div>
       )}
+      {pessoa.pcd && (
+        <PcdSelo
+          tipo={pessoa.pcdTipo}
+          observacao={pessoa.pcdDescricao}
+          className="mt-1.5 max-w-full"
+        />
+      )}
       {pessoa.cargo && (
         <div
           className="mt-auto rounded-lg px-2 py-1 text-[10.5px] font-semibold leading-snug"
@@ -631,7 +646,6 @@ function PessoaDialog({
 }) {
   const [form, setForm] = useState<Pessoa | null>(pessoa);
   const [enviando, setEnviando] = useState(false);
-  const upload = useServerFn(uploadOrgFoto);
   const fileRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => setForm(pessoa), [pessoa]);
 
@@ -647,10 +661,11 @@ function PessoaDialog({
   const trocarFoto = async (file: File) => {
     setEnviando(true);
     try {
-      const dataUrl = await redimensionarFoto(file);
-      const { fileId } = await upload({ data: { base64: dataUrl, nome: form.nome || form.id } });
-      set({ foto: `drive:${fileId}` });
-      toast.success("Foto enviada. Salve o organograma para manter a alteração.");
+      // A foto (reduzida) vai dentro do próprio organograma: aparece para todos
+      // assim que ele for salvo, sem depender de permissões do Drive.
+      const dataUrl = await redimensionarFoto(file, 220);
+      set({ foto: dataUrl });
+      toast.success("Foto carregada. Clique em Salvar para todos verem.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao enviar a foto.");
     } finally {
@@ -755,6 +770,58 @@ function PessoaDialog({
               onChange={(e) => set({ email: e.target.value })}
               type="email"
             />
+          </div>
+          <div className="col-span-2 space-y-2.5 rounded-xl border p-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={Boolean(form.pcd)}
+                onCheckedChange={(v) => set({ pcd: v === true })}
+              />
+              <HeartHandshake className="h-4 w-4 text-info" /> Pessoa com deficiência (PCD)
+            </label>
+            {form.pcd && (
+              <>
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  {PCD_TIPOS.map((t) => {
+                    const ativo = form.pcdTipo === t.id;
+                    const Icon = t.icon;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        title={t.descricao}
+                        onClick={() => set({ pcdTipo: ativo ? "" : t.id })}
+                        className={cn(
+                          "flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-medium transition",
+                          ativo ? "shadow-sm" : "text-muted-foreground hover:text-foreground",
+                        )}
+                        style={
+                          ativo
+                            ? {
+                                color: t.cor,
+                                borderColor: t.cor,
+                                background: `color-mix(in oklab, ${t.cor} 10%, transparent)`,
+                              }
+                            : undefined
+                        }
+                      >
+                        <Icon className="h-4 w-4" />
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Input
+                  value={form.pcdDescricao ?? ""}
+                  onChange={(e) => set({ pcdDescricao: e.target.value })}
+                  placeholder="Observação (opcional) — ex.: comunica-se em Libras"
+                />
+              </>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Aparece como um selo discreto no card, com o ícone do tipo. Preencha só com o
+              consentimento da pessoa.
+            </p>
           </div>
         </div>
         <DialogFooter>

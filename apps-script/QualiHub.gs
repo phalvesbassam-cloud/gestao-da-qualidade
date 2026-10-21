@@ -1,19 +1,15 @@
 /**
- * QualiHub — Apps Script de gravação (QLD/QLDE e Organograma)
- * ------------------------------------------------------------
- * Como instalar (uma vez):
- *  1. Acesse https://script.google.com → "Novo projeto" (projeto separado;
- *     NÃO cole no script que já existe na planilha, senão os dois doPost brigam).
- *  2. Dê o nome "QualiHub - Gravação", apague o conteúdo padrão, cole TODO este
- *     código e salve.
- *  3. Implantar → Nova implantação → tipo "App da Web":
- *       Executar como: Eu
- *       Quem pode acessar: Qualquer pessoa
- *  4. Autorize, copie a URL que termina em /exec e configure no site como
- *     QUALIHUB_SCRIPT_URL (ou envie a URL para colocarmos no código).
+ * QualiHub — Apps Script do sistema (único script da planilha IDF-ALERTA-RNC)
+ * ----------------------------------------------------------------------------
+ * Este script substitui o antigo na MESMA URL: faz tudo o que ele fazia
+ * (auditoria, nota manual do IDF, evidências de RNC) e mais QLD/QLDE,
+ * organograma e os dados digitados na tela RDM.
  *
- * Se você alterar este código depois, use Implantar → Gerenciar implantações →
- * editar (lápis) → Versão: Nova versão, para manter a mesma URL.
+ * Para atualizar:
+ *  1. Abra o projeto do Apps Script que já está publicado.
+ *  2. Apague o código antigo, cole TODO este arquivo e salve.
+ *  3. Implantar → Gerenciar implantações → lápis (editar) → Versão: "Nova versão"
+ *     → Implantar. Assim a URL continua a mesma.
  */
 
 var SPREADSHEET_ID = "1ockGLmUaeC7u0QpwxROYo2rIz-40RnUC8oRGZwrq2Q0"; // IDF-ALERTA-RNC
@@ -26,6 +22,7 @@ var ORG_CHUNK = 40000; // limite de 50 mil caracteres por célula
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || "";
   if (action === "getOrg") return json_({ ok: true, org: readOrg_() });
+  if (action === "kvGet") return json_({ ok: true, dados: kvGet_((e.parameter && e.parameter.prefixo) || "") });
   return json_({ ok: true, service: "QualiHub", time: new Date().toISOString() });
 }
 
@@ -45,6 +42,15 @@ function doPost(e) {
         return json_(saveOrg_(body));
       case "uploadFoto":
         return json_(uploadFoto_(body));
+      case "kvSet":
+        return json_(kvSet_(body));
+      // Ações do script antigo
+      case "audit":
+        return json_(legacyAudit_(body));
+      case "saveNotaOverride":
+        return json_(saveNotaOverride_(body));
+      case "addEvidencia":
+        return json_(addEvidencia_(body));
       default:
         return json_({ ok: false, error: "Ação desconhecida: " + body.action });
     }
@@ -245,7 +251,7 @@ function ss_() {
   return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
-function audit_(autor, acao, entidade, entidadeId, item, dados) {
+function audit_(autor, acao, entidade, entidadeId, item, dados, fornecedor) {
   try {
     var sh = ss_().getSheetByName(AUDIT_SHEET);
     if (!sh) return;
@@ -256,13 +262,125 @@ function audit_(autor, acao, entidade, entidadeId, item, dados) {
       acao,
       entidade,
       entidadeId || "",
-      "",
+      fornecedor || "",
       item || "",
-      JSON.stringify(dados || {}),
+      typeof dados === "string" ? dados : JSON.stringify(dados || {}),
     ]);
   } catch (e) {
     // a auditoria nunca bloqueia a gravação
   }
+}
+
+/* ===================== AÇÕES ANTIGAS DO QUALIHUB =====================
+   Mantidas aqui para este script poder substituir o antigo na mesma URL:
+   auditoria, nota manual do IDF (NOTA_OVERRIDE) e evidências de RNC. */
+
+var NOTA_SHEET = "NOTA_OVERRIDE";
+var EVID_SHEET = "EVIDENCIAS";
+var EVID_FOLDER = "QualiHub - Evidências RNC";
+
+function sheetWithHeader_(name, header) {
+  var ss = ss_();
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, header.length).setValues([header]);
+  }
+  return sh;
+}
+
+function legacyAudit_(b) {
+  audit_(b.autor, b.acao || "evento", b.entidade || "", b.entidade_id || "", b.item || "", b.dados, b.fornecedor);
+  return { ok: true };
+}
+
+function saveNotaOverride_(b) {
+  var header = ["processo", "codigo_item", "lote", "nota_final", "motivo", "observacao", "autor", "updated_at"];
+  var sh = sheetWithHeader_(NOTA_SHEET, header);
+  var key = [String(b.processo), String(b.codigo_item), String(b.lote || "")].join("__");
+  var last = sh.getLastRow();
+  var row = 0;
+  if (last >= 2) {
+    var values = sh.getRange(2, 1, last - 1, 3).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if ([String(values[i][0]), String(values[i][1]), String(values[i][2])].join("__") === key) {
+        row = i + 2;
+        break;
+      }
+    }
+  }
+  if (!row) row = last + 1;
+  sh.getRange(row, 1, 1, header.length).setValues([[
+    String(b.processo), String(b.codigo_item), String(b.lote || ""), Number(b.nota_final),
+    String(b.motivo || ""), String(b.observacao || ""), String(b.autor || ""), new Date().toISOString(),
+  ]]);
+  audit_(b.autor, "nota_alterada", "nota_override", b.processo + "/" + b.codigo_item + "/" + (b.lote || ""), b.item || b.codigo_item, b, b.fornecedor);
+  return { ok: true };
+}
+
+function addEvidencia_(b) {
+  var header = ["id", "rnc_id", "url", "nome", "tipo", "observacao", "autor", "created_at"];
+  var sh = sheetWithHeader_(EVID_SHEET, header);
+  var url = String(b.url || "");
+  if (b.file_base64) {
+    var it = DriveApp.getFoldersByName(EVID_FOLDER);
+    var folder = it.hasNext() ? it.next() : DriveApp.createFolder(EVID_FOLDER);
+    var raw = String(b.file_base64);
+    var mime = (raw.match(/^data:([^;]+);/) || [])[1] || b.tipo || "application/octet-stream";
+    var bytes = Utilities.base64Decode(raw.replace(/^data:[^,]+,/, ""));
+    var file = folder.createFile(Utilities.newBlob(bytes, mime, b.nome || "evidencia"));
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    url = file.getUrl();
+  }
+  var id = Utilities.getUuid();
+  sh.appendRow([id, String(b.rnc_id), url, String(b.nome || ""), String(b.tipo || ""), String(b.observacao || ""), String(b.autor || ""), new Date().toISOString()]);
+  audit_(b.autor, "evidencia_adicionada", "rnc_evidencia", b.rnc_id, "", { nome: b.nome, url: url });
+  return { ok: true, id: id, url: url };
+}
+
+/* ===================== DADOS DO QUALIHUB (chave → JSON) =====================
+   Guarda informações digitadas no sistema, como os campos manuais da RDM
+   (adequação e comentários do mês). */
+
+var KV_SHEET = "QUALIHUB_DADOS";
+
+function kvSheet_() {
+  return sheetWithHeader_(KV_SHEET, ["chave", "json", "atualizado_em", "autor"]);
+}
+
+function kvGet_(prefixo) {
+  var sh = kvSheet_();
+  var last = sh.getLastRow();
+  var out = {};
+  if (last < 2) return out;
+  var values = sh.getRange(2, 1, last - 1, 4).getValues();
+  values.forEach(function (r) {
+    var chave = String(r[0]);
+    if (prefixo && chave.indexOf(prefixo) !== 0) return;
+    try {
+      out[chave] = { valor: JSON.parse(String(r[1] || "null")), atualizadoEm: String(r[2]), autor: String(r[3]) };
+    } catch (e) {}
+  });
+  return out;
+}
+
+function kvSet_(b) {
+  if (!b.chave) throw new Error("Chave obrigatória.");
+  var sh = kvSheet_();
+  var texto = JSON.stringify(b.valor == null ? null : b.valor);
+  if (texto.length > 45000) throw new Error("Conteúdo grande demais.");
+  var last = sh.getLastRow();
+  var row = 0;
+  if (last >= 2) {
+    var chaves = sh.getRange(2, 1, last - 1, 1).getValues();
+    for (var i = 0; i < chaves.length; i++) if (String(chaves[i][0]) === String(b.chave)) row = i + 2;
+  }
+  if (!row) row = last + 1;
+  var agora = new Date().toISOString();
+  sh.getRange(row, 2).setNumberFormat("@");
+  sh.getRange(row, 1, 1, 4).setValues([[String(b.chave), texto, agora, String(b.autor || "")]]);
+  audit_(b.autor, "dados_atualizados", "qualihub_dados", b.chave, "", {});
+  return { ok: true, atualizadoEm: agora };
 }
 
 function json_(obj) {

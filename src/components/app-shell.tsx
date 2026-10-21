@@ -28,6 +28,7 @@ import {
   CalendarDays,
   Activity,
   Network,
+  FileBarChart,
   Presentation,
   Boxes,
 } from "lucide-react";
@@ -65,6 +66,7 @@ import logo from "@/assets/frasle-logo.png";
 const NAV = [
   { to: "/", label: "Consolidado", icon: LayoutDashboard, group: "Visão executiva" },
   { to: "/reuniao", label: "Reunião Mensal", icon: Presentation, group: "Visão executiva" },
+  { to: "/rdm", label: "RDM", icon: FileBarChart, group: "Visão executiva" },
   { to: "/qld-qlde", label: "QLD / QLDE", icon: Boxes, group: "Visão executiva" },
 
   { to: "/idf", label: "IDF", icon: ClipboardCheck, group: "Gestão da Qualidade" },
@@ -421,7 +423,8 @@ const subtitles: Record<string, string> = {
   "/alerta": "Alertas da qualidade",
   "/rnc": "Não conformidades registradas",
   "/inspecao": "Monitoramento operacional e desempenho da equipe",
-    "/apresentacao": "Monte, apresente e exporte em PowerPoint editável",
+    "/rdm": "Reunião de Desempenho Mensal — slide da diretoria e PowerPoint oficial",
+  "/apresentacao": "Monte, apresente e exporte em PowerPoint editável",
   "/organograma": "Estrutura da Qualidade — Controle de Qualidade e Adequação",
   "/auditoria": "Trilha de auditoria",
   "/admin": "Configurações do dashboard",
@@ -429,6 +432,7 @@ const subtitles: Record<string, string> = {
   const labels: Record<string, string> = {
     "/inspecao": "Gestão de Inspeção",
     "/apresentacao": "Editor de apresentação",
+    "/rdm": "RDM",
   };
   return (
     <div className="min-w-0 max-w-24 flex flex-col leading-tight sm:max-w-none">

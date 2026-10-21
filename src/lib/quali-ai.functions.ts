@@ -62,7 +62,10 @@ function models() {
 }
 
 function apiKey() {
-  const key = process.env.GEMINI_API_KEY?.trim();
+  // Tolera aspas ou espaços colados junto com a chave no painel do Netlify.
+  const key = process.env.GEMINI_API_KEY?.trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
   if (!key) {
     throw new Error(
       "QualiAI sem chave: crie uma chave gratuita em https://aistudio.google.com/apikey e configure GEMINI_API_KEY no servidor.",
@@ -155,9 +158,13 @@ async function callGemini(
         payload = { ...payload, tools: undefined };
         continue;
       }
-      if (res.status === 401 || res.status === 403) {
+      if (
+        res.status === 401 ||
+        res.status === 403 ||
+        /api key not valid|API_KEY_INVALID/i.test(message)
+      ) {
         throw new Error(
-          "A chave do Gemini (GEMINI_API_KEY) é inválida ou não tem acesso à API Generative Language.",
+          "O Google recusou a chave do Gemini configurada neste servidor (GEMINI_API_KEY). Confira se ela foi colada sem aspas/espaços e, no Netlify, faça um novo deploy depois de alterar a variável.",
         );
       }
       break; // 404 (modelo indisponível), 429 (cota), 5xx → próximo modelo

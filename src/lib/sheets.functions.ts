@@ -14,7 +14,8 @@ import type { DashboardData, QLDQLDERow } from "./types";
 import { encodeDashboard } from "./wire";
 
 const SPREADSHEET_ID = "1ockGLmUaeC7u0QpwxROYo2rIz-40RnUC8oRGZwrq2Q0";
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmgoSKMH0PZdPPLKlKFcNaxWEL9ybC8-NuNMDTRbTcT0xDt6YWRmj5ejBnWldPheI/exec";
+const APPS_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbzmgoSKMH0PZdPPLKlKFcNaxWEL9ybC8-NuNMDTRbTcT0xDt6YWRmj5ejBnWldPheI/exec";
 
 function csvUrl(sheetName: string) {
   return `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
@@ -275,7 +276,11 @@ async function buildDashboardData(): Promise<DashboardData> {
   const fornecedores = scoreFornecedores(idf, alerta, rnc, cfg.irBuckets);
 
   const divisoes = Array.from(
-    new Set([...idf.map((r) => r.divisao), ...alerta.map((r) => r.divisao), ...rnc.map((r) => r.divisao)]),
+    new Set([
+      ...idf.map((r) => r.divisao),
+      ...alerta.map((r) => r.divisao),
+      ...rnc.map((r) => r.divisao),
+    ]),
   )
     .filter(Boolean)
     .sort();
@@ -416,7 +421,16 @@ export const saveNotaOverride = createServerFn({ method: "POST" })
   });
 
 export const deleteNotaOverride = createServerFn({ method: "POST" })
-  .inputValidator((d: { processo: string; codigo_item: string; lote?: string; autor?: string; fornecedor?: string; item?: string }) => d)
+  .inputValidator(
+    (d: {
+      processo: string;
+      codigo_item: string;
+      lote?: string;
+      autor?: string;
+      fornecedor?: string;
+      item?: string;
+    }) => d,
+  )
   .handler(async ({ data }) => {
     await logAudit({
       autor: data.autor?.trim() || "Sistema",
@@ -467,13 +481,23 @@ export const listEvidencias = createServerFn({ method: "GET" })
   });
 
 export const addEvidencia = createServerFn({ method: "POST" })
-  .inputValidator((d: { rnc_id: string; url?: string; nome: string; tipo?: string; observacao?: string; autor: string; file_base64?: string }) => {
-    if (!d.rnc_id) throw new Error("RNC obrigatório");
-    if (!d.nome) throw new Error("Nome obrigatório");
-    if (!d.url && !d.file_base64) throw new Error("Arquivo ou URL obrigatório");
-    if (!d.autor?.trim()) throw new Error("Autor obrigatório");
-    return d;
-  })
+  .inputValidator(
+    (d: {
+      rnc_id: string;
+      url?: string;
+      nome: string;
+      tipo?: string;
+      observacao?: string;
+      autor: string;
+      file_base64?: string;
+    }) => {
+      if (!d.rnc_id) throw new Error("RNC obrigatório");
+      if (!d.nome) throw new Error("Nome obrigatório");
+      if (!d.url && !d.file_base64) throw new Error("Arquivo ou URL obrigatório");
+      if (!d.autor?.trim()) throw new Error("Autor obrigatório");
+      return d;
+    },
+  )
   .handler(async ({ data }) => {
     const result = await postToAppsScript({
       action: "addEvidencia",
@@ -522,16 +546,18 @@ export type AuditEntry = {
 
 export const listAuditLog = createServerFn({ method: "GET" })
   .inputValidator(
-    (d: {
-      autor?: string;
-      entidade?: string;
-      acao?: string;
-      fornecedor?: string;
-      item?: string;
-      dataInicio?: string;
-      dataFim?: string;
-      limit?: number;
-    } = {}) => d,
+    (
+      d: {
+        autor?: string;
+        entidade?: string;
+        acao?: string;
+        fornecedor?: string;
+        item?: string;
+        dataInicio?: string;
+        dataFim?: string;
+        limit?: number;
+      } = {},
+    ) => d,
   )
   .handler(async ({ data }): Promise<AuditEntry[]> => {
     try {
@@ -549,11 +575,22 @@ export const listAuditLog = createServerFn({ method: "GET" })
         dados: value(row, 8),
       }));
 
-      if (data.autor) rows = rows.filter((r) => r.autor.toLowerCase().includes(data.autor!.toLowerCase()));
+      if (data.autor)
+        rows = rows.filter((r) => r.autor.toLowerCase().includes(data.autor!.toLowerCase()));
       if (data.entidade) rows = rows.filter((r) => r.entidade === data.entidade);
       if (data.acao) rows = rows.filter((r) => r.acao === data.acao);
-      if (data.fornecedor) rows = rows.filter((r) => String(r.fornecedor ?? "").toLowerCase().includes(data.fornecedor!.toLowerCase()));
-      if (data.item) rows = rows.filter((r) => String(r.item ?? "").toLowerCase().includes(data.item!.toLowerCase()));
+      if (data.fornecedor)
+        rows = rows.filter((r) =>
+          String(r.fornecedor ?? "")
+            .toLowerCase()
+            .includes(data.fornecedor!.toLowerCase()),
+        );
+      if (data.item)
+        rows = rows.filter((r) =>
+          String(r.item ?? "")
+            .toLowerCase()
+            .includes(data.item!.toLowerCase()),
+        );
       if (data.dataInicio) rows = rows.filter((r) => String(r.created_at) >= data.dataInicio!);
       if (data.dataFim) rows = rows.filter((r) => String(r.created_at) <= data.dataFim!);
 
@@ -623,11 +660,13 @@ function requireAutor(autor?: string) {
 }
 
 export const updateQldItem = createServerFn({ method: "POST" })
-  .inputValidator((d: { row: number; item: string; deposito: string; fields: QldFields; autor: string }) => {
-    if (!d.item) throw new Error("Item obrigatório");
-    requireAutor(d.autor);
-    return d;
-  })
+  .inputValidator(
+    (d: { row: number; item: string; deposito: string; fields: QldFields; autor: string }) => {
+      if (!d.item) throw new Error("Item obrigatório");
+      requireAutor(d.autor);
+      return d;
+    },
+  )
   .handler(async ({ data }) => {
     await postToQualiHubScript({ action: "updateQld", ...data, autor: data.autor.trim() });
     return { ok: true };
@@ -646,27 +685,67 @@ export const addQldItem = createServerFn({ method: "POST" })
   });
 
 export const setQldCheck = createServerFn({ method: "POST" })
-  .inputValidator((d: { row: number; item: string; deposito: string; checked: boolean; autor: string }) => {
-    if (!d.item) throw new Error("Item obrigatório");
-    requireAutor(d.autor);
-    return d;
-  })
+  .inputValidator(
+    (d: { row: number; item: string; deposito: string; checked: boolean; autor: string }) => {
+      if (!d.item) throw new Error("Item obrigatório");
+      requireAutor(d.autor);
+      return d;
+    },
+  )
   .handler(async ({ data }) => {
-    const result = await postToQualiHubScript({ action: "setQldCheck", ...data, autor: data.autor.trim() });
+    const result = await postToQualiHubScript({
+      action: "setQldCheck",
+      ...data,
+      autor: data.autor.trim(),
+    });
     return { ok: true, finalizadoEm: String(result.finalizadoEm ?? "") };
   });
 
-/** Organograma salvo na aba ORGANOGRAMA (JSON em blocos na coluna A). */
+/* Organograma compartilhado.
+   Sem o Apps Script novo, usa o script que já está publicado: cada salvamento
+   vira uma linha "organograma_salvo" na aba AUDITORIA (pública para leitura) e
+   a versão mais recente é a que vale. As fotos vão para o Drive pela mesma
+   rotina das evidências de RNC. */
+
+const ORG_ACAO = "organograma_salvo";
+const ORG_FOTO_RNC = "ORGANOGRAMA";
+
+function newScriptUrl() {
+  return process.env.QUALIHUB_SCRIPT_URL || QUALIHUB_SCRIPT_URL_FALLBACK;
+}
+
+async function lerOrgDaAuditoria(): Promise<string | null> {
+  const values = await fetchPublicSheet("AUDITORIA");
+  const header = (values[0] ?? []).map((h) => String(h).trim().toLowerCase());
+  if (header[0] !== "id" || !header.includes("dados")) return null;
+  const iData = header.indexOf("data");
+  const iAcao = header.indexOf("acao");
+  const iDados = header.indexOf("dados");
+  let melhor: { data: string; dados: string } | null = null;
+  for (const row of values.slice(1)) {
+    if (value(row, iAcao) !== ORG_ACAO) continue;
+    const data = value(row, iData);
+    const dados = value(row, iDados);
+    if (!dados.startsWith("{")) continue;
+    if (!melhor || data >= melhor.data) melhor = { data, dados };
+  }
+  return melhor?.dados ?? null;
+}
+
 export const getOrganograma = createServerFn({ method: "GET" }).handler(async () => {
-  // Lê pelo Apps Script: a planilha pública devolveria a primeira aba (IDF)
-  // quando a aba ORGANOGRAMA ainda não existe.
-  const url = process.env.QUALIHUB_SCRIPT_URL || QUALIHUB_SCRIPT_URL_FALLBACK;
-  if (!url) return { json: null as string | null };
+  const url = newScriptUrl();
   try {
-    const res = await fetch(`${url}?action=getOrg`, { redirect: "follow", signal: AbortSignal.timeout(15000) });
-    const data = (await res.json()) as { ok?: boolean; org?: unknown };
-    return { json: data?.org ? JSON.stringify(data.org) : null };
-  } catch {
+    if (url) {
+      const res = await fetch(`${url}?action=getOrg`, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      });
+      const data = (await res.json()) as { ok?: boolean; org?: unknown };
+      return { json: data?.org ? JSON.stringify(data.org) : null };
+    }
+    return { json: await lerOrgDaAuditoria() };
+  } catch (e) {
+    console.error("[organograma] leitura", e);
     return { json: null as string | null };
   }
 });
@@ -674,17 +753,45 @@ export const getOrganograma = createServerFn({ method: "GET" }).handler(async ()
 export const saveOrganograma = createServerFn({ method: "POST" })
   .inputValidator((d: { json: string; autor: string }) => {
     if (!d.json?.trim().startsWith("{")) throw new Error("Organograma inválido");
+    if (d.json.length > 900_000) throw new Error("Organograma grande demais para salvar.");
     requireAutor(d.autor);
     return d;
   })
   .handler(async ({ data }) => {
-    const result = await postToQualiHubScript({
-      action: "saveOrg",
-      org: JSON.parse(data.json),
-      autor: data.autor.trim(),
+    const autor = data.autor.trim();
+    if (newScriptUrl()) {
+      const result = await postToQualiHubScript({
+        action: "saveOrg",
+        org: JSON.parse(data.json),
+        autor,
+      });
+      return { ok: true, atualizadoEm: String(result.atualizadoEm ?? "") };
+    }
+    if (data.json.length > 45_000) {
+      throw new Error(
+        "Com fotos, o organograma precisa do Apps Script atualizado (apps-script/LEIA-ME.md).",
+      );
+    }
+    const atualizadoEm = new Date().toISOString();
+    const org = { ...JSON.parse(data.json), atualizadoEm, atualizadoPor: autor };
+    const result = await postToAppsScript({
+      action: "audit",
+      autor,
+      acao: ORG_ACAO,
+      entidade: "organograma",
+      entidade_id: "global",
+      fornecedor: "",
+      item: "",
+      dados: JSON.stringify(org),
     });
-    return { ok: true, atualizadoEm: String(result.atualizadoEm ?? "") };
+    if (result?.ok === false) throw new Error(result?.error || "Erro ao salvar o organograma.");
+    clearSheetCache();
+    return { ok: true, atualizadoEm };
   });
+
+function driveIdFromUrl(url: string) {
+  return url.match(/[?&]id=([\w-]+)/)?.[1] ?? url.match(/\/d\/([\w-]+)/)?.[1] ?? "";
+}
 
 export const uploadOrgFoto = createServerFn({ method: "POST" })
   .inputValidator((d: { base64: string; nome: string }) => {
@@ -693,11 +800,193 @@ export const uploadOrgFoto = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data }) => {
-    const result = await postToQualiHubScript({
-      action: "uploadFoto",
-      base64: data.base64,
-      nome: data.nome,
-      mime: "image/jpeg",
+    if (newScriptUrl()) {
+      const result = await postToQualiHubScript({
+        action: "uploadFoto",
+        base64: data.base64,
+        nome: data.nome,
+        mime: "image/jpeg",
+      });
+      return { fileId: String(result.fileId ?? "") };
+    }
+    // Usa a rotina de evidências do script atual (salva no Drive e registra a URL).
+    const nome = `organograma-${data.nome}-${Date.now()}.jpg`;
+    const result = await postToAppsScript({
+      action: "addEvidencia",
+      rnc_id: ORG_FOTO_RNC,
+      url: "",
+      nome,
+      tipo: "image/jpeg",
+      observacao: "Foto do organograma",
+      autor: "QualiHub",
+      file_base64: data.base64,
     });
-    return { fileId: String(result.fileId ?? "") };
+    if (result?.ok === false) throw new Error(result?.error || "Erro ao enviar a foto.");
+    const direta = String(result?.url ?? result?.fileUrl ?? "");
+    let fileId = String(result?.fileId ?? result?.id_drive ?? "") || driveIdFromUrl(direta);
+    if (!fileId) {
+      const values = await fetchPublicSheet("EVIDENCIAS");
+      const linha = values.find((row) => value(row, 3) === nome);
+      fileId = linha ? driveIdFromUrl(value(linha, 2)) : "";
+    }
+    if (!fileId)
+      throw new Error("A foto foi enviada, mas não foi possível localizar o arquivo no Drive.");
+    return { fileId };
   });
+
+/* ============ Dados digitados no QualiHub (ex.: campos manuais da RDM) ============
+   Ficam na aba QUALIHUB_DADOS pelo Apps Script (ações kvGet/kvSet). */
+
+function scriptUrlGeral() {
+  return process.env.QUALIHUB_SCRIPT_URL || QUALIHUB_SCRIPT_URL_FALLBACK || APPS_SCRIPT_URL;
+}
+
+export const getQualihubDados = createServerFn({ method: "GET" })
+  .inputValidator((d: { prefixo: string }) => d)
+  .handler(async ({ data }) => {
+    try {
+      const res = await fetch(
+        `${scriptUrlGeral()}?action=kvGet&prefixo=${encodeURIComponent(data.prefixo)}`,
+        { redirect: "follow", signal: AbortSignal.timeout(15000) },
+      );
+      const body = (await res.json()) as {
+        dados?: Record<string, { valor: unknown; atualizadoEm: string; autor: string }>;
+      };
+      // Sem "dados" = Apps Script ainda na versão anterior (sem kvGet).
+      return {
+        json: body?.dados ? JSON.stringify(body.dados) : null,
+        suportado: Boolean(body?.dados),
+      };
+    } catch {
+      return { json: null as string | null, suportado: false };
+    }
+  });
+
+export const saveQualihubDados = createServerFn({ method: "POST" })
+  .inputValidator((d: { chave: string; json: string; autor: string }) => {
+    if (!d.chave?.trim()) throw new Error("Chave obrigatória");
+    if (d.json.length > 40_000) throw new Error("Conteúdo grande demais");
+    requireAutor(d.autor);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const res = await fetch(scriptUrlGeral(), {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "kvSet",
+        chave: data.chave,
+        valor: JSON.parse(data.json),
+        autor: data.autor.trim(),
+      }),
+      redirect: "follow",
+    });
+    const result = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      atualizadoEm?: string;
+    };
+    if (result.ok === false || !result.ok) {
+      const msg = result.error ?? "";
+      throw new Error(
+        /desconhecida/i.test(msg)
+          ? "O Apps Script precisa ser atualizado para salvar os dados da RDM (apps-script/LEIA-ME.md)."
+          : msg || "Não foi possível salvar.",
+      );
+    }
+    return { ok: true, atualizadoEm: result.atualizadoEm ?? "" };
+  });
+
+/* ===================== Adequação (sistema da área de Adequação) =====================
+   O painel https://adequacaofraslemobility.netlify.app lê esta planilha publicada.
+   A RDM usa as mesmas abas de registros (peças adequadas por ITEM, ORIGEM e DATA FIM). */
+
+const ADEQUACAO_PUB =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTjprYWeQEHkIJAKElPa7_a0HJ3toPZJGvm8-VaJ2rp80e7rZlhQiUFDixa3fd055ikTSwUAs5cSzK6/pub";
+const ADEQUACAO_ABAS = ["2081330396", "2058453745"]; // registros 2026 e 2025
+
+export type AdequacaoMes = {
+  ano: number;
+  mes: number; // 0-11
+  pecas: number;
+  valor: number;
+  skus: number;
+  md: { pecas: number; valor: number };
+  avaria: { pecas: number; valor: number };
+};
+
+let adequacaoCache: { at: number; data: AdequacaoMes[] } | null = null;
+
+export const getAdequacaoMensal = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ meses: AdequacaoMes[]; ok: boolean }> => {
+    if (adequacaoCache && Date.now() - adequacaoCache.at < 5 * 60_000) {
+      return { meses: adequacaoCache.data, ok: true };
+    }
+    try {
+      const mapa = new Map<string, AdequacaoMes & { itens: Set<string> }>();
+      for (const gid of ADEQUACAO_ABAS) {
+        const res = await fetch(`${ADEQUACAO_PUB}?gid=${gid}&single=true&output=csv`, {
+          redirect: "follow",
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!res.ok) continue;
+        const rows = parseCsv(await res.text());
+        const norm = (s: string) => s.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const hi = rows.findIndex(
+          (r) => r.some((c) => norm(c) === "ITEM") && r.some((c) => norm(c) === "ORIGEM"),
+        );
+        if (hi < 0) continue;
+        const h = rows[hi].map(norm);
+        const iItem = h.indexOf("ITEM");
+        const iQtd = h.findIndex((c) => c.startsWith("QTDE"));
+        const iValor = h.findIndex((c) => c.startsWith("PECA X VALOR"));
+        const iOrigem = h.indexOf("ORIGEM");
+        const iData = h.indexOf("DATA FIM");
+        for (const r of rows.slice(hi + 1)) {
+          const item = value(r, iItem);
+          const m = value(r, iData).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (!item || !m) continue;
+          const ano = Number(m[3]);
+          const mes = Number(m[2]) - 1;
+          const k = `${ano}-${mes}`;
+          const e = mapa.get(k) ?? {
+            ano,
+            mes,
+            pecas: 0,
+            valor: 0,
+            skus: 0,
+            md: { pecas: 0, valor: 0 },
+            avaria: { pecas: 0, valor: 0 },
+            itens: new Set<string>(),
+          };
+          // "1.520" é mil quinhentos e vinte (separador de milhar), não 1,52.
+          const qtdTxt = value(r, iQtd);
+          const qtd = /^\d{1,3}(\.\d{3})+$/.test(qtdTxt)
+            ? Number(qtdTxt.replace(/\./g, ""))
+            : numberBR(qtdTxt);
+          const val = numberBR(value(r, iValor));
+          e.pecas += qtd;
+          e.valor += val;
+          e.itens.add(item.toUpperCase());
+          const origem = norm(value(r, iOrigem));
+          const alvo = origem.includes("AVARIA") ? e.avaria : e.md;
+          alvo.pecas += qtd;
+          alvo.valor += val;
+          mapa.set(k, e);
+        }
+      }
+      const data = [...mapa.values()]
+        .map(({ itens, ...e }) => ({
+          ...e,
+          skus: itens.size,
+          valor: Math.round(e.valor * 100) / 100,
+        }))
+        .sort((a, b) => a.ano - b.ano || a.mes - b.mes);
+      adequacaoCache = { at: Date.now(), data };
+      return { meses: data, ok: true };
+    } catch (e) {
+      console.error("[adequacao]", e);
+      return { meses: adequacaoCache?.data ?? [], ok: false };
+    }
+  },
+);

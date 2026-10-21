@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RncRouteImport } from './routes/rnc'
 import { Route as ReuniaoRouteImport } from './routes/reuniao'
+import { Route as RdmRouteImport } from './routes/rdm'
 import { Route as QldQldeRouteImport } from './routes/qld-qlde'
 import { Route as OrganogramaRouteImport } from './routes/organograma'
 import { Route as InspecaoRouteImport } from './routes/inspecao'
@@ -30,6 +31,11 @@ const RncRoute = RncRouteImport.update({
 const ReuniaoRoute = ReuniaoRouteImport.update({
   id: '/reuniao',
   path: '/reuniao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RdmRoute = RdmRouteImport.update({
+  id: '/rdm',
+  path: '/rdm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QldQldeRoute = QldQldeRouteImport.update({
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/inspecao': typeof InspecaoRoute
   '/organograma': typeof OrganogramaRoute
   '/qld-qlde': typeof QldQldeRoute
+  '/rdm': typeof RdmRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/inspecao': typeof InspecaoRoute
   '/organograma': typeof OrganogramaRoute
   '/qld-qlde': typeof QldQldeRoute
+  '/rdm': typeof RdmRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/inspecao': typeof InspecaoRoute
   '/organograma': typeof OrganogramaRoute
   '/qld-qlde': typeof QldQldeRoute
+  '/rdm': typeof RdmRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/inspecao'
     | '/organograma'
     | '/qld-qlde'
+    | '/rdm'
     | '/reuniao'
     | '/rnc'
     | '/fornecedor/$fornecedor'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/inspecao'
     | '/organograma'
     | '/qld-qlde'
+    | '/rdm'
     | '/reuniao'
     | '/rnc'
     | '/fornecedor/$fornecedor'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/inspecao'
     | '/organograma'
     | '/qld-qlde'
+    | '/rdm'
     | '/reuniao'
     | '/rnc'
     | '/fornecedor/$fornecedor'
@@ -181,6 +193,7 @@ export interface RootRouteChildren {
   InspecaoRoute: typeof InspecaoRoute
   OrganogramaRoute: typeof OrganogramaRoute
   QldQldeRoute: typeof QldQldeRoute
+  RdmRoute: typeof RdmRoute
   ReuniaoRoute: typeof ReuniaoRoute
   RncRoute: typeof RncRoute
   FornecedorFornecedorRoute: typeof FornecedorFornecedorRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/reuniao'
       fullPath: '/reuniao'
       preLoaderRoute: typeof ReuniaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rdm': {
+      id: '/rdm'
+      path: '/rdm'
+      fullPath: '/rdm'
+      preLoaderRoute: typeof RdmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/qld-qlde': {
@@ -285,6 +305,7 @@ const rootRouteChildren: RootRouteChildren = {
   InspecaoRoute: InspecaoRoute,
   OrganogramaRoute: OrganogramaRoute,
   QldQldeRoute: QldQldeRoute,
+  RdmRoute: RdmRoute,
   ReuniaoRoute: ReuniaoRoute,
   RncRoute: RncRoute,
   FornecedorFornecedorRoute: FornecedorFornecedorRoute,

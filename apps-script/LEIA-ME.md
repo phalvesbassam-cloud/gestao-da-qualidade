@@ -21,21 +21,31 @@ pessoais ou sigilosos nas perguntas.
 
 A variável `OPENAI_API_KEY` não é mais usada e pode ser removida.
 
-## 2. Gravação do QLD/QLDE e do Organograma (Apps Script)
+## 2. Apps Script do sistema (gravações na planilha)
 
-1. Acesse https://script.google.com → **Novo projeto** (projeto separado do script que já existe).
-2. Apague o conteúdo padrão, cole todo o arquivo `QualiHub.gs` desta pasta e salve.
-3. **Implantar → Nova implantação** → tipo **App da Web**:
-   - Executar como: **Eu**
-   - Quem pode acessar: **Qualquer pessoa**
-4. Autorize o acesso à planilha e ao Drive e copie a URL que termina em `/exec`.
-5. Configure a URL:
-   - `.env.local`: `QUALIHUB_SCRIPT_URL=https://script.google.com/macros/s/.../exec`
-   - Netlify: variável `QUALIHUB_SCRIPT_URL`.
+O arquivo `QualiHub.gs` é o **único** script da planilha: faz tudo o que o script antigo fazia
+(auditoria, nota manual do IDF, evidências de RNC) e também QLD/QLDE, organograma e os campos
+digitados na tela RDM.
 
-Na primeira gravação o script cria, se ainda não existirem, as colunas **Motivo**, **Finalizado em** e
-**Finalizado por** na aba `QLD-QLDE`, e a aba `ORGANOGRAMA`. As fotos enviadas pelo organograma vão
-para a pasta "QualiHub - Fotos do Organograma" no Drive.
+**Se você já colou uma versão anterior deste script no projeto publicado** (é o caso hoje):
+1. Abra o projeto do Apps Script publicado.
+2. Apague o código, cole todo o `QualiHub.gs` desta pasta e salve.
+3. **Implantar → Gerenciar implantações → lápis (editar) → Versão: Nova versão → Implantar.**
+   A URL continua a mesma; não precisa mudar nada no site.
 
-Se alterar o código do script depois: **Implantar → Gerenciar implantações → editar → Nova versão**
-(assim a URL continua a mesma).
+**Instalação do zero:** script.google.com → Novo projeto → cole o código → Implantar → Nova
+implantação → App da Web (Executar como: Eu · Quem pode acessar: Qualquer pessoa) → copie a URL
+`/exec` e configure em `QUALIHUB_SCRIPT_URL`.
+
+## 3. Variáveis no Netlify
+
+Em *Project configuration → Environment variables → Add a variable*:
+
+| Key (nome)            | Value (valor)                         |
+|-----------------------|---------------------------------------|
+| `GEMINI_API_KEY`      | a chave do Gemini (começa com `AQ.` ou `AIza`) |
+| `QUALIHUB_SCRIPT_URL` | a URL `/exec` do Apps Script          |
+
+O campo **Key** é o nome (`GEMINI_API_KEY`); a chave em si vai no campo **Value**. Marque
+"Contains secret values". Depois de salvar, faça um novo deploy (*Deploys → Trigger deploy*).
+As variáveis só valem para a versão publicada que já tem estas telas (depois do merge no `main`).

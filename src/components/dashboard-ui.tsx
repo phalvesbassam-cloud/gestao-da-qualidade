@@ -270,6 +270,39 @@ export function KpiCard({
   );
 }
 
+const MES_ABREV = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
+
+/** "dez/2025 a out/2026" — meses de inspeção cobertos pelas linhas. */
+function periodoDasLinhas(rows: IDFRow[]) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const r of rows) {
+    const t = inspectionDate(r)?.getTime();
+    if (t == null) continue;
+    if (t < min) min = t;
+    if (t > max) max = t;
+  }
+  if (!Number.isFinite(min)) return null;
+  const fmt = (t: number) => {
+    const d = new Date(t);
+    return `${MES_ABREV[d.getMonth()]}/${d.getFullYear()}`;
+  };
+  return fmt(min) === fmt(max) ? fmt(min) : `${fmt(min)} a ${fmt(max)}`;
+}
+
 export function PpmCard({
   idf,
   previous,
@@ -281,6 +314,7 @@ export function PpmCard({
 }) {
   const { ppm, ncQt, totalQt } = calcPPM(idf);
   const prev = previous ? calcPPM(previous) : null;
+  const periodo = useMemo(() => periodoDasLinhas(idf), [idf]);
   return (
     <KpiFrame tone="ppm" onClick={onClick}>
       <KpiHeader label="PPM" tone="ppm" icon={<Target className="h-4 w-4" />} />
@@ -292,6 +326,7 @@ export function PpmCard({
       </div>
       <div className="relative mt-1.5 text-[12px] text-muted-foreground">
         {ncQt.toLocaleString("pt-BR")} peças NC / {totalQt.toLocaleString("pt-BR")} inspecionadas
+        {periodo && <span className="block text-[11px]">Período: {periodo} (por peças)</span>}
       </div>
       {prev && (
         <div className="relative mt-auto pt-2">
@@ -397,6 +432,16 @@ function PpmMensalDialog({
   const months = useMemo(() => monthlyPpm(rows, year), [rows, year]);
   const totals = ppmTotals(months);
   const semData = useMemo(() => rows.filter((r) => !inspectionDate(r)).length, [rows]);
+  // O card "PPM" usa todas as linhas do recorte (inclusive outros anos e linhas sem data).
+  const todo = useMemo(() => {
+    const pecas = calcPPM(rows);
+    const rep = rows.filter((r) => String(r.status).toLowerCase().includes("reprov")).length;
+    return {
+      ppmPecas: pecas.ppm,
+      ppmSku: rows.length ? Math.round((rep / rows.length) * 1_000_000) : 0,
+    };
+  }, [rows]);
+  const periodoTodo = useMemo(() => periodoDasLinhas(rows) ?? "todas as linhas", [rows]);
   const chart = months.map((m) => ({ mes: m.mes, ppm: ppmValue(m, mode) }));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -422,10 +467,16 @@ function PpmMensalDialog({
           </div>
           <div className="text-right">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Acumulado do ano
+              Acumulado de {year}
             </div>
             <div className="font-display text-xl font-bold tabular-nums text-[var(--chart-ppm)]">
               {(mode === "sku" ? totals.ppmSku : totals.ppmPecas).toLocaleString("pt-BR")}
+            </div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">
+              Todo o período ({periodoTodo}):{" "}
+              <span className="font-semibold text-foreground">
+                {(mode === "sku" ? todo.ppmSku : todo.ppmPecas).toLocaleString("pt-BR")}
+              </span>
             </div>
           </div>
         </div>

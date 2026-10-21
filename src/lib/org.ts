@@ -27,6 +27,10 @@ export type Pessoa = {
   /** "lideranca" ou o id de uma área. */
   areaId: string;
   ordem: number;
+  /** Pessoa com deficiência (PCD) e, opcionalmente, o tipo/necessidade de apoio. */
+  pcd?: boolean;
+  pcdTipo?: string;
+  pcdDescricao?: string;
 };
 
 export type Area = {
@@ -195,6 +199,9 @@ export function normalizarOrg(raw: unknown): OrgData {
       foto: String(x.foto ?? ""),
       areaId: String(x.areaId ?? LIDERANCA),
       ordem: Number(x.ordem) || 0,
+      pcd: Boolean(x.pcd),
+      pcdTipo: String(x.pcdTipo ?? ""),
+      pcdDescricao: String(x.pcdDescricao ?? ""),
     })),
     atualizadoEm: o.atualizadoEm,
     atualizadoPor: o.atualizadoPor,
@@ -237,14 +244,19 @@ export function useOrganograma() {
     queryKey: ["organograma"],
     queryFn: async (): Promise<{ org: OrgData; salvo: boolean; origem: OrgOrigem }> => {
       const { json } = await fetchOrg();
+      const local = lerLocal();
       if (json) {
         try {
-          return { org: normalizarOrg(JSON.parse(json)), salvo: true, origem: "planilha" };
+          const remoto = normalizarOrg(JSON.parse(json));
+          // Edição local mais nova que a da planilha (ainda não publicada) continua valendo.
+          if (local && String(local.atualizadoEm ?? "") > String(remoto.atualizadoEm ?? "")) {
+            return { org: local, salvo: true, origem: "local" };
+          }
+          return { org: remoto, salvo: true, origem: "planilha" };
         } catch {
           /* cai para o local/padrão */
         }
       }
-      const local = lerLocal();
       if (local) return { org: local, salvo: true, origem: "local" };
       return { org: ORG_PADRAO, salvo: false, origem: "padrao" };
     },
@@ -303,7 +315,7 @@ export function redimensionarFoto(file: File, max = 480): Promise<string> {
         canvas.height = max;
         const ctx = canvas.getContext("2d")!;
         ctx.drawImage(img, sx, sy, s, s, 0, 0, max, max);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
       };
       img.src = String(reader.result);
     };
