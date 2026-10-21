@@ -1,733 +1,740 @@
+// Gera o PowerPoint (.pptx) a partir dos mesmos SlideSpec usados na tela.
+// Tudo sai editável: textos em caixas de texto, cards como formas, gráficos
+// nativos do PowerPoint (com planilha de dados) e tabelas nativas.
+// Coordenadas: o slide da tela tem 1280×720 px; no PPT 13,333×7,5 pol (px/96).
 import PptxGenJS from "pptxgenjs";
-import type { PresentationSlide } from "@/contexts/presentation-context";
+import logoUrl from "@/assets/frasle-logo.png";
+import {
+  THEME_HEX,
+  TONE_HEX,
+  excelFormat,
+  formatValue,
+  seriesColor,
+  hex,
+  type ChartSpecData,
+  type KpiItem,
+  type SlideSpec,
+  type SlideTheme,
+} from "@/lib/slide-spec";
+import { CONTENT, kpiLayout } from "@/components/slide-canvas";
 
-type DataRecord = Record<string, unknown>;
-type Tone = "red" | "blue" | "green" | "amber" | "purple" | "neutral";
-
-type ExecutiveCardData = {
-  key?: string;
-  label: string;
-  value: string;
-  rawValue?: number;
-  description?: string;
-  tone?: Tone;
-  icon?: string;
+export type PptxSlideInput = {
+  title: string;
+  subtitle?: string;
+  notes?: string;
+  spec: SlideSpec;
 };
 
-const COLORS = {
-  background: "071014",
-  card: "0D171C",
-  card2: "101A1F",
-  border: "263238",
-  primary: "EF2B2D",
-  white: "F5F7F8",
-  muted: "9AA8AE",
-  red: "EF2B2D",
-  blue: "5C8FA8",
-  green: "22C55E",
-  amber: "F59E0B",
-  purple: "B84BFF",
+const IN = (px: number) => px / 96;
+const PT = (px: number) => Math.round(px * 0.75 * 10) / 10;
+// Fontes presentes em qualquer Windows (Inter/Sora nem sempre estão instaladas).
+const FONT = "Segoe UI";
+const FONT_DISPLAY = "Segoe UI Semibold";
+
+/** Carrega a logo reduzida (PNG ~120 px de altura) para não pesar o arquivo. */
+async function loadLogo(url: string): Promise<{ data: string; ratio: number }> {
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("logo"));
+    img.src = url;
+  });
+  const h = Math.min(120, img.height);
+  const w = Math.round((img.width / img.height) * h);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+  return { data: canvas.toDataURL("image/png"), ratio: w / h };
+}
+
+type Ctx = {
+  pptx: PptxGenJS;
+  theme: SlideTheme;
+  logo: string | null;
+  logoRatio: number;
+  dateLabel: string;
 };
 
-const TONE = {
-  red: { accent: COLORS.red, border: "6B2427", fill: "171316", badge: "35171A" },
-  blue: { accent: COLORS.blue, border: "33464F", fill: "10181C", badge: "1B2B32" },
-  green: { accent: COLORS.green, border: "245936", fill: "0E1A14", badge: "143D23" },
-  amber: { accent: COLORS.amber, border: "66501B", fill: "1A1710", badge: "3B2E10" },
-  purple: { accent: COLORS.purple, border: "5D2A70", fill: "17111B", badge: "351A40" },
-  neutral: { accent: COLORS.muted, border: COLORS.border, fill: COLORS.card, badge: "1A252B" },
-} satisfies Record<Tone, { accent: string; border: string; fill: string; badge: string }>;
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "number") {
-    return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+function addLogo(ctx: Ctx, slide: PptxGenJS.Slide, x: number, y: number, h: number) {
+  if (!ctx.logo) return;
+  const w = h * ctx.logoRatio;
+  if (ctx.theme === "dark") {
+    slide.addShape(ctx.pptx.ShapeType.roundRect, {
+      x: IN(x - 12),
+      y: IN(y - 6),
+      w: IN(w + 24),
+      h: IN(h + 12),
+      fill: { color: "FFFFFF" },
+      line: { color: "FFFFFF", width: 0 },
+      rectRadius: 0.08,
+    });
   }
-  if (typeof value === "boolean") return value ? "Sim" : "Não";
-  return String(value);
+  slide.addImage({ data: ctx.logo, x: IN(x), y: IN(y), w: IN(w), h: IN(h) });
 }
 
-function formatLabel(value: string): string {
-  return value
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[_-]/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function asRecord(data: unknown): DataRecord | null {
-  return data && typeof data === "object" && !Array.isArray(data)
-    ? (data as DataRecord)
-    : null;
-}
-
-function getFlatEntries(data: unknown): Array<[string, unknown]> {
-  const record = asRecord(data);
-  if (!record) return [];
-  return Object.entries(record).filter(([, value]) =>
-    ["string", "number", "boolean"].includes(typeof value),
-  );
-}
-
-function getRows(data: unknown): DataRecord[] {
-  if (Array.isArray(data)) {
-    return data.filter(
-      (row): row is DataRecord => Boolean(row) && typeof row === "object" && !Array.isArray(row),
-    );
-  }
-  const record = asRecord(data);
-  if (!record) return [];
-  const candidates = [
-    record.rows,
-    record.data,
-    record.items,
-    record.ranking,
-    record.fornecedores,
-    record.top5,
-    record.bottom5,
-    record.serie,
-  ];
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      const rows = candidate.filter(
-        (row): row is DataRecord => Boolean(row) && typeof row === "object" && !Array.isArray(row),
-      );
-      if (rows.length) return rows;
-    }
-  }
-  return [];
-}
-
-function addBase(
-  pptx: PptxGenJS,
+function addChrome(
+  ctx: Ctx,
   slide: PptxGenJS.Slide,
-  item: PresentationSlide,
-  slideNumber: number,
+  item: PptxSlideInput,
+  index: number,
+  total: number,
 ) {
-  slide.background = { color: COLORS.background };
-
-  slide.addText("QUALIHUB", {
-    x: 0.55, y: 0.28, w: 2, h: 0.25,
-    fontFace: "Arial", fontSize: 9, bold: true,
-    color: COLORS.primary, charSpacing: 2, margin: 0,
+  const t = THEME_HEX[ctx.theme];
+  const { pptx } = ctx;
+  slide.background = { color: t.bg };
+  slide.addShape(pptx.ShapeType.rect, {
+    x: IN(56),
+    y: 0,
+    w: IN(120),
+    h: IN(6),
+    fill: { color: t.primary },
+    line: { color: t.primary, width: 0 },
   });
-
-  slide.addText("GESTÃO DA QUALIDADE", {
-    x: 10.7, y: 0.3, w: 1.95, h: 0.2,
-    fontFace: "Arial", fontSize: 5.5, color: COLORS.muted,
-    align: "right", margin: 0,
+  slide.addText("QUALIHUB · GESTÃO DA QUALIDADE", {
+    x: IN(56),
+    y: IN(34),
+    w: IN(700),
+    h: IN(24),
+    fontFace: FONT,
+    fontSize: PT(13),
+    bold: true,
+    color: t.primary,
+    charSpacing: 2,
+    margin: 0,
   });
-
+  addLogo(ctx, slide, 1280 - 56 - 30 * ctx.logoRatio, 30, 30);
   slide.addText(item.title || "Slide sem título", {
-    x: 0.55, y: 0.7, w: 11.9, h: 0.45,
-    fontFace: "Arial", fontSize: 22, bold: true,
-    color: COLORS.white, margin: 0, fit: "shrink",
+    x: IN(56),
+    y: IN(62),
+    w: IN(1000),
+    h: IN(52),
+    fontFace: FONT_DISPLAY,
+    fontSize: PT(38),
+    bold: true,
+    color: t.text,
+    margin: 0,
+    fit: "shrink",
+    valign: "middle",
   });
-
   if (item.subtitle) {
     slide.addText(item.subtitle, {
-      x: 0.55, y: 1.18, w: 11.9, h: 0.28,
-      fontFace: "Arial", fontSize: 9, color: COLORS.muted,
-      margin: 0, fit: "shrink",
+      x: IN(56),
+      y: IN(116),
+      w: IN(1100),
+      h: IN(26),
+      fontFace: FONT,
+      fontSize: PT(17),
+      color: t.muted,
+      margin: 0,
+      fit: "shrink",
     });
   }
-
   slide.addShape(pptx.ShapeType.line, {
-    x: 0.55, y: 1.58, w: 12.2, h: 0,
-    line: { color: COLORS.border, width: 1 },
+    x: IN(56),
+    y: IN(720 - 36),
+    w: IN(1168),
+    h: 0,
+    line: { color: t.border, width: 0.75 },
   });
-
-  slide.addShape(pptx.ShapeType.line, {
-    x: 0.55, y: 7.05, w: 12.2, h: 0,
-    line: { color: COLORS.border, width: 1 },
+  slide.addText(`Frasle Mobility · Gestão da Qualidade de Fornecedores · ${ctx.dateLabel}`, {
+    x: IN(56),
+    y: IN(720 - 30),
+    w: IN(800),
+    h: IN(18),
+    fontFace: FONT,
+    fontSize: PT(12),
+    color: t.muted,
+    margin: 0,
   });
-
-  slide.addText(item.sourceRoute ? `Fonte: QualiHub ${item.sourceRoute}` : "Fonte: QualiHub", {
-    x: 0.55, y: 7.12, w: 4, h: 0.18,
-    fontFace: "Arial", fontSize: 5.5, color: COLORS.muted, margin: 0,
-  });
-
-  slide.addText(`Frasle Mobility  •  ${slideNumber}`, {
-    x: 9.5, y: 7.12, w: 3.25, h: 0.18,
-    fontFace: "Arial", fontSize: 5.5, color: COLORS.muted,
-    align: "right", margin: 0,
+  slide.addText(`${index} / ${total}`, {
+    x: IN(1280 - 56 - 200),
+    y: IN(720 - 30),
+    w: IN(200),
+    h: IN(18),
+    fontFace: FONT,
+    fontSize: PT(12),
+    bold: true,
+    color: t.muted,
+    align: "right",
+    margin: 0,
   });
 }
 
-function iconGlyph(icon?: string) {
-  switch (icon) {
-    case "gauge": return "↗";
-    case "package": return "◇";
-    case "check": return "✓";
-    case "x": return "×";
-    case "activity": return "∿";
-    case "boxes": return "⬡";
-    default: return "•";
-  }
-}
-
-function addExecutiveKpis(
-  pptx: PptxGenJS,
+function addCover(
+  ctx: Ctx,
   slide: PptxGenJS.Slide,
-  cards: ExecutiveCardData[],
+  spec: Extract<SlideSpec, { type: "cover" | "section" }>,
 ) {
-  const visible = cards.slice(0, 6);
-  const gap = 0.12;
-  const x0 = 0.55;
-  const totalW = 12.2;
-  const cardW = (totalW - gap * 5) / 6;
-  const y = 2.25;
-  const h = 2.0;
+  const t = THEME_HEX[ctx.theme];
+  const { pptx } = ctx;
+  slide.background = { color: t.bg };
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0,
+    y: 0,
+    w: IN(14),
+    h: 7.5,
+    fill: { color: t.primary },
+    line: { color: t.primary, width: 0 },
+  });
+  addLogo(ctx, slide, 96, 72, 44);
+  const isSection = spec.type === "section";
+  const top = isSection ? 260 : 238;
+  slide.addText(isSection ? "SEÇÃO" : "QUALIHUB · GESTÃO DA QUALIDADE", {
+    x: IN(96),
+    y: IN(top),
+    w: IN(1050),
+    h: IN(24),
+    fontFace: FONT,
+    fontSize: PT(16),
+    bold: true,
+    color: t.primary,
+    charSpacing: 3,
+    margin: 0,
+  });
+  slide.addText(spec.title, {
+    x: IN(96),
+    y: IN(top + 34),
+    w: IN(1050),
+    h: IN(96),
+    fontFace: FONT_DISPLAY,
+    fontSize: PT(66),
+    bold: true,
+    color: t.text,
+    margin: 0,
+    valign: "top",
+    fit: "shrink",
+  });
+  if (spec.subtitle) {
+    slide.addText(spec.subtitle, {
+      x: IN(96),
+      y: IN(top + 140),
+      w: IN(1050),
+      h: IN(36),
+      fontFace: FONT,
+      fontSize: PT(24),
+      color: t.muted,
+      margin: 0,
+    });
+  }
+  const meta = spec.type === "cover" ? (spec.meta ?? ctx.dateLabel) : ctx.dateLabel;
+  slide.addText(meta, {
+    x: IN(96),
+    y: IN(720 - 86),
+    w: IN(700),
+    h: IN(24),
+    fontFace: FONT,
+    fontSize: PT(16),
+    color: t.muted,
+    margin: 0,
+  });
+  slide.addText("Frasle Mobility", {
+    x: IN(1280 - 72 - 300),
+    y: IN(720 - 86),
+    w: IN(300),
+    h: IN(24),
+    fontFace: FONT,
+    fontSize: PT(14),
+    color: t.muted,
+    align: "right",
+    margin: 0,
+  });
+}
 
-  visible.forEach((card, index) => {
-    const tone = TONE[card.tone ?? "neutral"];
-    const x = x0 + index * (cardW + gap);
+function addKpis(
+  ctx: Ctx,
+  slide: PptxGenJS.Slide,
+  items: KpiItem[],
+  box: { x: number; y: number; w: number; h: number },
+  columns?: number,
+  compact = false,
+) {
+  const t = THEME_HEX[ctx.theme];
+  const { pptx } = ctx;
+  const layout = columns ? { cols: columns, rows: items.length } : kpiLayout(items.length);
+  const gap = compact ? 14 : 20;
+  const cardW = (box.w - gap * (layout.cols - 1)) / layout.cols;
+  const cardH = Math.min(compact ? 128 : 220, (box.h - gap * (layout.rows - 1)) / layout.rows);
+  const gridH = cardH * layout.rows + gap * (layout.rows - 1);
+  const startY = compact ? box.y : box.y + (box.h - gridH) / 2;
 
-    // sombra/glow discreto, semelhante aos cards do sistema
+  items.forEach((k, i) => {
+    const col = i % layout.cols;
+    const row = Math.floor(i / layout.cols);
+    const x = box.x + col * (cardW + gap);
+    const y = startY + row * (cardH + gap);
+    const tone = TONE_HEX[k.tone ?? "neutral"][ctx.theme];
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: x + 0.03, y: y + 0.05, w: cardW, h,
-      rectRadius: 0.08,
-      fill: { color: "020608", transparency: 35 },
-      line: { color: "020608", transparency: 100 },
+      x: IN(x),
+      y: IN(y),
+      w: IN(cardW),
+      h: IN(cardH),
+      fill: { color: t.card },
+      line: { color: t.border, width: 0.75 },
+      rectRadius: 0.12,
     });
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x, y, w: cardW, h,
-      rectRadius: 0.08,
-      fill: { color: tone.fill },
-      line: { color: tone.border, width: 1.1 },
+    slide.addShape(pptx.ShapeType.rect, {
+      x: IN(x + 10),
+      y: IN(y),
+      w: IN(cardW - 20),
+      h: IN(5),
+      fill: { color: tone },
+      line: { color: tone, width: 0 },
     });
-
-    slide.addShape(pptx.ShapeType.ellipse, {
-      x: x + cardW - 0.48, y: y + 0.18, w: 0.3, h: 0.3,
-      fill: { color: tone.badge },
-      line: { color: tone.badge, transparency: 100 },
+    const padX = compact ? 18 : 26;
+    const padY = compact ? 16 : 24;
+    slide.addText(k.label.toUpperCase(), {
+      x: IN(x + padX),
+      y: IN(y + padY),
+      w: IN(cardW - padX * 2),
+      h: IN(20),
+      fontFace: FONT,
+      fontSize: PT(compact ? 12 : 14),
+      bold: true,
+      color: t.muted,
+      charSpacing: 1,
+      margin: 0,
+      fit: "shrink",
     });
-
-    slide.addText(iconGlyph(card.icon), {
-      x: x + cardW - 0.43, y: y + 0.215, w: 0.2, h: 0.16,
-      fontFace: "Arial", fontSize: 10, bold: true,
-      color: tone.accent, align: "center", margin: 0,
+    const valueSize = compact ? 30 : k.value.length > 12 ? 38 : 50;
+    slide.addText(k.value, {
+      x: IN(x + padX),
+      y: IN(y + padY + (compact ? 26 : 34)),
+      w: IN(cardW - padX * 2),
+      h: IN(valueSize * 1.25),
+      fontFace: FONT_DISPLAY,
+      fontSize: PT(valueSize),
+      bold: true,
+      color: k.tone && k.tone !== "neutral" ? tone : t.text,
+      margin: 0,
+      fit: "shrink",
+      valign: "middle",
     });
-
-    slide.addText(card.label.toUpperCase(), {
-      x: x + 0.15, y: y + 0.18, w: cardW - 0.7, h: 0.2,
-      fontFace: "Arial", fontSize: 6.2, bold: true,
-      color: COLORS.muted, margin: 0, fit: "shrink",
-    });
-
-    slide.addText(card.value, {
-      x: x + 0.15, y: y + 0.92, w: cardW - 0.3, h: 0.43,
-      fontFace: "Arial", fontSize: card.key === "qld-qlde" ? 13 : 18,
-      bold: true, color: COLORS.white, margin: 0, fit: "shrink",
-    });
-
-    if (card.description) {
-      slide.addText(card.description, {
-        x: x + 0.15, y: y + 1.48, w: cardW - 0.3, h: 0.22,
-        fontFace: "Arial", fontSize: 6.2,
-        color: COLORS.muted, margin: 0, fit: "shrink",
+    if (k.hint) {
+      slide.addText(k.hint, {
+        x: IN(x + padX),
+        y: IN(y + cardH - padY - 20),
+        w: IN(cardW - padX * 2),
+        h: IN(22),
+        fontFace: FONT,
+        fontSize: PT(compact ? 12 : 15),
+        color: t.muted,
+        margin: 0,
+        fit: "shrink",
       });
     }
   });
-
-  slide.addText("Consolidado dos principais indicadores da operação", {
-    x: 0.55, y: 4.65, w: 12.2, h: 0.28,
-    fontFace: "Arial", fontSize: 8, color: COLORS.muted,
-    margin: 0, align: "center",
-  });
 }
 
-function addQldQldeKpis(
-  pptx: PptxGenJS,
+function chartType(pptx: PptxGenJS, kind: ChartSpecData["kind"]) {
+  switch (kind) {
+    case "line":
+      return pptx.ChartType.line;
+    case "area":
+      return pptx.ChartType.area;
+    case "doughnut":
+      return pptx.ChartType.doughnut;
+    case "pie":
+      return pptx.ChartType.pie;
+    default:
+      return pptx.ChartType.bar;
+  }
+}
+
+function addChart(
+  ctx: Ctx,
   slide: PptxGenJS.Slide,
-  record: DataRecord,
+  chart: ChartSpecData,
+  box: { x: number; y: number; w: number; h: number },
 ) {
-  const qld = asRecord(record.qld);
-  const qlde = asRecord(record.qlde);
-  if (!qld && !qlde) return false;
-
-  const cards = [
-    { title: "QLD", deposito: "Depósito 522 · Saldo livre", data: qld, tone: TONE.amber, status: "Em tratamento" },
-    { title: "QLDE", deposito: "Depósito 523 · Saldo bloqueado", data: qlde, tone: TONE.red, status: "Bloqueado" },
-  ] as const;
-
-  cards.forEach((card, index) => {
-    if (!card.data) return;
-    const x = 0.65 + index * 6.1;
-    const y = 2.0;
-    const w = 5.85;
-    const h = 2.25;
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x, y, w, h, rectRadius: 0.08,
-      fill: { color: card.tone.fill },
-      line: { color: card.tone.border, width: 1.1 },
-    });
-    slide.addText(card.title, {
-      x: x + 0.25, y: y + 0.2, w: 1.2, h: 0.25,
-      fontFace: "Arial", fontSize: 12, bold: true, color: COLORS.white, margin: 0,
-    });
-    slide.addText(card.deposito, {
-      x: x + 0.25, y: y + 0.5, w: 3.4, h: 0.2,
-      fontFace: "Arial", fontSize: 7, color: COLORS.muted, margin: 0,
-    });
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x: x + 4.35, y: y + 0.18, w: 1.2, h: 0.32, rectRadius: 0.05,
-      fill: { color: card.tone.badge }, line: { color: card.tone.border },
-    });
-    slide.addText(card.status, {
-      x: x + 4.4, y: y + 0.26, w: 1.1, h: 0.12,
-      fontFace: "Arial", fontSize: 5.5, bold: true,
-      color: card.tone.accent, align: "center", margin: 0,
-    });
-
-    const fields = [
-      ["Valor", card.data.valor],
-      ["Quantidade", card.data.quantidade],
-      ["SKUs", card.data.skus],
-    ] as const;
-
-    fields.forEach(([label, value], fieldIndex) => {
-      const fw = 1.7;
-      const fx = x + 0.25 + fieldIndex * 1.82;
-      slide.addShape(pptx.ShapeType.roundRect, {
-        x: fx, y: y + 1.05, w: fw, h: 0.85, rectRadius: 0.04,
-        fill: { color: COLORS.background }, line: { color: COLORS.border, width: 0.7 },
-      });
-      slide.addText(label, {
-        x: fx + 0.1, y: y + 1.18, w: fw - 0.2, h: 0.13,
-        fontFace: "Arial", fontSize: 5.5, color: COLORS.muted, margin: 0,
-      });
-      const formatted = label === "Valor" && typeof value === "number"
-        ? value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-        : formatValue(value);
-      slide.addText(formatted, {
-        x: fx + 0.1, y: y + 1.48, w: fw - 0.2, h: 0.22,
-        fontFace: "Arial", fontSize: label === "Valor" ? 9 : 11,
-        bold: true, color: COLORS.white, margin: 0, fit: "shrink",
-      });
-    });
+  const t = THEME_HEX[ctx.theme];
+  const { pptx } = ctx;
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x: IN(box.x),
+    y: IN(box.y),
+    w: IN(box.w),
+    h: IN(box.h),
+    fill: { color: t.card },
+    line: { color: t.border, width: 0.75 },
+    rectRadius: 0.12,
   });
+  const pad = 22;
+  const area = {
+    x: IN(box.x + pad),
+    y: IN(box.y + pad),
+    w: IN(box.w - pad * 2),
+    h: IN(box.h - pad * 2),
+  };
 
-  return true;
-}
+  const base = {
+    ...area,
+    showLegend:
+      chart.series.length > 1 ||
+      chart.kind === "doughnut" ||
+      chart.kind === "pie" ||
+      Boolean(chart.target),
+    legendPos: chart.kind === "doughnut" || chart.kind === "pie" ? "r" : "b",
+    legendFontSize: 12,
+    legendColor: t.muted,
+    legendFontFace: FONT,
+    catAxisLabelColor: t.muted,
+    valAxisLabelColor: t.muted,
+    catAxisLabelFontSize: 12,
+    valAxisLabelFontSize: 11,
+    catAxisLabelFontFace: FONT,
+    valAxisLabelFontFace: FONT,
+    catAxisLineShow: false,
+    valAxisLineShow: false,
+    valGridLine: { color: t.grid, style: "dash", size: 0.75 },
+    catGridLine: { style: "none" },
+    valAxisLabelFormatCode: excelFormat(chart.format),
+    dataLabelFormatCode: excelFormat(chart.format),
+    dataLabelColor: t.text,
+    dataLabelFontSize: 11,
+    dataLabelFontFace: FONT,
+    showValue: chart.showValues ?? chart.categories.length <= 14,
+    plotArea: { fill: { color: t.card } },
+    catAxisLabelRotate:
+      chart.categories.length > 6 &&
+      Math.max(...chart.categories.map((x) => x.length), 0) > 8 &&
+      chart.kind !== "barH"
+        ? -30
+        : 0,
+  } as Record<string, unknown>;
 
-function addKpis(pptx: PptxGenJS, slide: PptxGenJS.Slide, data: unknown) {
-  const record = asRecord(data);
+  const colors = chart.series.map((_, i) => seriesColor(chart, i));
+  const data = chart.series.map((s) => ({
+    name: s.name,
+    labels: chart.categories,
+    values: s.values.map((v) => Number(v) || 0),
+  }));
 
-  // QLD/QLDE possui objetos aninhados; getFlatEntries não consegue renderizá-los.
-  // Renderizamos diretamente os dois cards com os valores reais selecionados.
-  if (record && addQldQldeKpis(pptx, slide, record)) return;
-
-  const cards = record?.cards;
-  if (record?.layout === "executive-kpis" && Array.isArray(cards)) {
-    addExecutiveKpis(pptx, slide, cards as ExecutiveCardData[]);
-    return;
-  }
-
-  const entries = getFlatEntries(data).slice(0, 8);
-  if (!entries.length) return addFallback(pptx, slide, "Indicadores");
-
-  const columns = Math.min(entries.length, 4);
-  const gap = 0.18;
-  const cardWidth = (12.2 - gap * (columns - 1)) / columns;
-
-  entries.forEach(([key, value], index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const x = 0.55 + column * (cardWidth + gap);
-    const y = 2.1 + row * 1.55;
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x, y, w: cardWidth, h: 1.25, rectRadius: 0.08,
-      fill: { color: COLORS.card }, line: { color: COLORS.border, width: 1 },
-    });
-    slide.addText(formatLabel(key).toUpperCase(), {
-      x: x + 0.18, y: y + 0.18, w: cardWidth - 0.36, h: 0.18,
-      fontFace: "Arial", fontSize: 6, bold: true, color: COLORS.muted,
-      margin: 0, fit: "shrink",
-    });
-    slide.addText(formatValue(value), {
-      x: x + 0.18, y: y + 0.53, w: cardWidth - 0.36, h: 0.42,
-      fontFace: "Arial", fontSize: 20, bold: true, color: COLORS.white,
-      margin: 0, fit: "shrink",
-    });
-  });
-}
-
-function addPpmChart(pptx: PptxGenJS, slide: PptxGenJS.Slide, serie: DataRecord[]) {
-  const labels = serie.map((row) => formatValue(row.mes));
-  const values = serie.map((row) => Number(row.ppm) || 0);
-
-  slide.addChart(
-    pptx.ChartType.line,
-    [{ name: "PPM", labels, values }],
-    {
-      x: 0.8, y: 1.95, w: 11.7, h: 4.65,
-      chartColors: [COLORS.primary],
-      showLegend: false,
-      showTitle: false,
-      showValue: true,
-      showValAxisTitle: false,
-      showCatAxisTitle: false,
-      catAxisLabelColor: COLORS.muted,
-      valAxisLabelColor: COLORS.muted,
-      catAxisLabelFontFace: "Arial",
-      valAxisLabelFontFace: "Arial",
-      catAxisLabelFontSize: 10,
-      valAxisLabelFontSize: 9,
-      valGridLine: { color: COLORS.border },
-      dataLabelColor: COLORS.white,
-      dataLabelPosition: "t",
-      dataLabelFormatCode: "#,##0",
-      lineSize: 2.5,
-      showMarker: true,
-      markerSize: 5,
-    } as any,
-  );
-}
-
-function addNcChart(
-  pptx: PptxGenJS,
-  slide: PptxGenJS.Slide,
-  serie: DataRecord[],
-  meta: number,
-) {
-  const labels = serie.map((row) => formatValue(row.mes));
-  const values = serie.map((row) => Number(row.indice) || 0);
-  const metas = labels.map(() => meta);
-
-  slide.addChart(
-    pptx.ChartType.line,
-    [
-      { name: "Índice NC", labels, values },
-      { name: `Meta ${meta}%`, labels, values: metas },
-    ],
-    {
-      x: 0.8, y: 1.95, w: 11.7, h: 4.65,
-      chartColors: [COLORS.primary, COLORS.amber],
-      showLegend: true,
-      legendColor: COLORS.muted,
-      legendFontSize: 8,
-      legendPos: "b",
-      showTitle: false,
-      showValue: true,
-      showValAxisTitle: false,
-      showCatAxisTitle: false,
-      catAxisLabelColor: COLORS.muted,
-      valAxisLabelColor: COLORS.muted,
-      catAxisLabelFontSize: 10,
-      valAxisLabelFontSize: 9,
-      valGridLine: { color: COLORS.border },
-      dataLabelColor: COLORS.white,
-      dataLabelPosition: "t",
-      // Os dados do QualiHub já chegam em pontos percentuais:
-      // 1.66 = 1,66%, 2.02 = 2,02%. Não usar "0.00%" aqui,
-      // pois o PowerPoint multiplicaria novamente por 100.
-      dataLabelFormatCode: '0.00"%"',
-      valAxisLabelFormatCode: '0.0"%"',
-      showMarker: true,
-      markerSize: 5,
-      lineSize: 2.5,
-    } as any,
-  );
-}
-
-function addChart(pptx: PptxGenJS, slide: PptxGenJS.Slide, item: PresentationSlide) {
-  const record = asRecord(item.data);
-  const serie = record?.serie;
-  const rows = Array.isArray(serie)
-    ? serie.filter((row): row is DataRecord => Boolean(row) && typeof row === "object" && !Array.isArray(row))
-    : [];
-
-  if (rows.length && rows.some((row) => "mes" in row && "ppm" in row)) {
-    addPpmChart(pptx, slide, rows);
-    return;
-  }
-
-  if (rows.length && rows.some((row) => "mes" in row && "indice" in row)) {
-    addNcChart(pptx, slide, rows, Number(record?.meta) || 2);
-    return;
-  }
-
-  // Eficiência mensal: preserva as séries Recebidas, Inspecionadas e Eficiência.
-  // Aceita nomes de propriedades usados em diferentes pontos do QualiHub.
-  if (
-    rows.length &&
-    rows.some((row) =>
-      "mes" in row &&
-      (
-        "recebidas" in row ||
-        "recebidos" in row ||
-        "inspecionadas" in row ||
-        "inspecionados" in row ||
-        "eficiencia" in row ||
-        "eficienciaPct" in row ||
-        "eficienciaPercentual" in row
-      )
-    )
-  ) {
-    const labels = rows.map((row) => formatValue(row.mes));
-    const pickNumber = (row: DataRecord, keys: string[]) => {
-      for (const key of keys) {
-        const value = row[key];
-        if (value !== undefined && value !== null && value !== "") {
-          const parsed = Number(value);
-          if (Number.isFinite(parsed)) return parsed;
-        }
-      }
-      return 0;
-    };
-
-    const recebidas = rows.map((row) =>
-      pickNumber(row, ["recebidas", "recebidos", "recebimento", "totalRecebidas"]),
-    );
-    const inspecionadas = rows.map((row) =>
-      pickNumber(row, ["inspecionadas", "inspecionados", "inspecao", "totalInspecionadas"]),
-    );
-    const eficiencia = rows.map((row) =>
-      pickNumber(row, ["eficiencia", "eficienciaPct", "eficienciaPercentual"]),
-    );
-
-    slide.addChart(
-      pptx.ChartType.bar,
-      [
-        { name: "Recebidas", labels, values: recebidas },
-        { name: "Inspecionadas", labels, values: inspecionadas },
-      ],
-      {
-        x: 0.8, y: 1.95, w: 11.7, h: 4.65,
-        chartColors: [COLORS.muted, COLORS.primary],
-        showLegend: true,
-        legendPos: "b",
-        legendColor: COLORS.muted,
-        showTitle: false,
-        showValue: true,
-        catAxisLabelColor: COLORS.muted,
-        valAxisLabelColor: COLORS.muted,
-        valGridLine: { color: COLORS.border },
-        dataLabelColor: COLORS.white,
-        dataLabelPosition: "outEnd",
-        dataLabelFormatCode: "#,##0",
-      } as any,
-    );
-
-    // A eficiência fica explicitamente visível como rótulo mensal.
-    // Isso evita perder o indicador mesmo em versões do PptxGenJS que
-    // não suportam bem gráfico combinado/segundo eixo.
-    eficiencia.forEach((value, index) => {
-      const usableW = 10.8;
-      const x = 1.05 + (usableW / Math.max(labels.length, 1)) * index;
-      slide.addText(`${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`, {
-        x, y: 1.77, w: usableW / Math.max(labels.length, 1), h: 0.16,
-        fontFace: "Arial", fontSize: 5.5, bold: true,
-        color: COLORS.green, align: "center", margin: 0, fit: "shrink",
-      });
-    });
-    return;
-  }
-
-  // Pareto: usa ocorrências e, quando disponível, mostra também o acumulado
-  // no próprio slide em vez de reduzir o conteúdo a uma série genérica.
-  if (
-    rows.length &&
-    rows.some((row) =>
-      "ocorrencias" in row ||
-      "ocorrência" in row ||
-      "ocorrencia" in row ||
-      "quantidade" in row
-    )
-  ) {
-    const labels = rows.map((row, index) =>
-      formatValue(
-        row.motivo ??
-        row.problema ??
-        row.descricao ??
-        row.causa ??
-        row.label ??
-        `Item ${index + 1}`,
+  if (chart.kind === "doughnut" || chart.kind === "pie") {
+    slide.addChart(chartType(pptx, chart.kind), data.slice(0, 1), {
+      ...base,
+      chartColors: chart.categories.map((_, i) =>
+        hex(chart.pointColors?.[i] ?? seriesColor({ ...chart, series: [] }, i)),
       ),
-    );
-    const values = rows.map((row) =>
-      Number(row.ocorrencias ?? row["ocorrência"] ?? row.ocorrencia ?? row.quantidade) || 0,
-    );
-
-    slide.addChart(
-      pptx.ChartType.bar,
-      [{ name: "Ocorrências", labels, values }],
-      {
-        x: 0.8, y: 1.95, w: 11.7, h: 4.65,
-        chartColors: [COLORS.primary],
-        showLegend: true,
-        legendPos: "b",
-        legendColor: COLORS.muted,
-        showTitle: false,
-        showValue: true,
-        catAxisLabelColor: COLORS.muted,
-        valAxisLabelColor: COLORS.muted,
-        valGridLine: { color: COLORS.border },
-        dataLabelColor: COLORS.white,
-        dataLabelPosition: "outEnd",
-        dataLabelFormatCode: "#,##0",
-      } as any,
-    );
+      holeSize: 58,
+      showPercent: true,
+      showValue: false,
+      showLabel: false,
+      dataLabelColor: "FFFFFF",
+      dataLabelFormatCode: "0.0%",
+      legendFontSize: 14,
+    } as PptxGenJS.IChartOpts);
     return;
   }
 
-  const genericRows = getRows(item.data).slice(0, 12);
-  if (genericRows.length) {
-    const keys = Object.keys(genericRows[0] ?? {});
-    const numericKey = keys.find((key) => genericRows.some((row) => typeof row[key] === "number"));
-    const labelKey = keys.find((key) => key !== numericKey && genericRows.some((row) => typeof row[key] === "string"));
-
-    if (numericKey) {
-      slide.addChart(
-        pptx.ChartType.bar,
-        [{
-          name: formatLabel(numericKey),
-          labels: genericRows.map((row, index) => labelKey ? formatValue(row[labelKey]) : String(index + 1)),
-          values: genericRows.map((row) => Number(row[numericKey]) || 0),
-        }],
+  // Meta como série tracejada (fica editável no PowerPoint).
+  const withTarget = chart.target
+    ? [
+        ...data,
         {
-          x: 0.8, y: 1.95, w: 11.7, h: 4.65,
-          chartColors: [COLORS.primary],
-          showLegend: false,
-          showTitle: false,
-          showValue: true,
-          catAxisLabelColor: COLORS.muted,
-          valAxisLabelColor: COLORS.muted,
-          valGridLine: { color: COLORS.border },
-          dataLabelColor: COLORS.white,
-        } as any,
-      );
-      return;
-    }
+          name: chart.target.label,
+          labels: chart.categories,
+          values: chart.categories.map(() => chart.target!.value),
+        },
+      ]
+    : data;
+
+  if (chart.kind === "combo") {
+    const bars = chart.series.map((s, i) => ({ s, i })).filter(({ s }) => s.type !== "line");
+    const lines = chart.series.map((s, i) => ({ s, i })).filter(({ s }) => s.type === "line");
+    const hasSecondary = lines.some(({ s }) => s.secondary);
+    const toData = (list: { s: ChartSpecData["series"][number] }[]) =>
+      list.map(({ s }) => ({
+        name: s.name,
+        labels: chart.categories,
+        values: s.values.map((v) => Number(v) || 0),
+      }));
+    const multi = [
+      ...(bars.length
+        ? [
+            {
+              type: pptx.ChartType.bar,
+              data: toData(bars),
+              options: {
+                chartColors: bars.map(({ i }) => colors[i]),
+                barGrouping: "clustered",
+                barGapWidthPct: 60,
+                showValue: base.showValue,
+                dataLabelPosition: "outEnd",
+                dataLabelFormatCode: excelFormat(chart.format),
+                dataLabelColor: t.text,
+                dataLabelFontSize: 10,
+              },
+            },
+          ]
+        : []),
+      ...(lines.length
+        ? [
+            {
+              type: pptx.ChartType.line,
+              data: toData(lines),
+              options: {
+                chartColors: lines.map(({ i }) => colors[i]),
+                lineSize: 3,
+                lineDataSymbolSize: 8,
+                secondaryValAxis: hasSecondary,
+                secondaryCatAxis: hasSecondary,
+                showValue: base.showValue,
+                dataLabelPosition: "t",
+                dataLabelFormatCode: excelFormat(
+                  hasSecondary ? (chart.secondaryFormat ?? chart.format) : chart.format,
+                ),
+                dataLabelColor: t.text,
+                dataLabelFontSize: 10,
+              },
+            },
+          ]
+        : []),
+    ];
+    // Gráfico combinado (barras + linhas): assinatura multi-tipo do pptxgenjs.
+    (slide.addChart as unknown as (types: unknown, opts: unknown) => void)(multi, {
+      ...base,
+      showValue: false,
+      valAxes: hasSecondary
+        ? [
+            {
+              showValAxisTitle: false,
+              valAxisMinVal: 0,
+              valAxisLabelFormatCode: excelFormat(chart.format),
+              valGridLine: { color: t.grid, style: "dash", size: 0.75 },
+              valAxisLabelColor: t.muted,
+            },
+            {
+              showValAxisTitle: false,
+              valAxisMinVal: 0,
+              valAxisLabelFormatCode: excelFormat(chart.secondaryFormat ?? chart.format),
+              valGridLine: { style: "none" },
+              valAxisLabelColor: t.muted,
+            },
+          ]
+        : undefined,
+      catAxes: hasSecondary ? [{ catAxisTitle: "" }, { catAxisHidden: true }] : undefined,
+    });
+    return;
   }
 
-  addFallback(pptx, slide, "Gráfico");
+  const isLine = chart.kind === "line" || chart.kind === "area";
+  if (chart.target && (isLine || chart.kind === "bar")) {
+    const mainType = chartType(pptx, chart.kind);
+    const multi = [
+      {
+        type: mainType,
+        data,
+        options: {
+          chartColors: colors,
+          lineSize: 3,
+          lineDataSymbol: "circle",
+          lineDataSymbolSize: 8,
+          barGapWidthPct: 55,
+          showValue: base.showValue,
+          dataLabelPosition: isLine ? "t" : "outEnd",
+          dataLabelFormatCode: excelFormat(chart.format),
+          dataLabelColor: t.text,
+          dataLabelFontSize: 11,
+        },
+      },
+      {
+        type: pptx.ChartType.line,
+        data: [withTarget[withTarget.length - 1]],
+        options: {
+          chartColors: [TONE_HEX.amber[ctx.theme]],
+          lineSize: 2,
+          lineDash: "dash",
+          lineDataSymbol: "none",
+          showValue: false,
+        },
+      },
+    ];
+    (slide.addChart as unknown as (types: unknown, opts: unknown) => void)(multi, {
+      ...base,
+      showValue: false,
+      valAxisMinVal: 0,
+    });
+    return;
+  }
+  slide.addChart(chartType(pptx, chart.kind), withTarget, {
+    ...base,
+    chartColors: [...colors, chart.target ? TONE_HEX.amber[ctx.theme] : undefined].filter(
+      Boolean,
+    ) as string[],
+    barDir: chart.kind === "barH" ? "bar" : "col",
+    barGrouping: chart.kind === "stacked" ? "stacked" : "clustered",
+    barGapWidthPct: 55,
+    lineSize: 3,
+    lineDataSymbol: isLine ? "circle" : undefined,
+    lineDataSymbolSize: 8,
+    lineSmooth: isLine,
+    dataLabelPosition:
+      chart.kind === "barH" ? "outEnd" : isLine ? "t" : chart.kind === "stacked" ? "ctr" : "outEnd",
+    catAxisOrientation: chart.kind === "barH" ? "maxMin" : "minMax",
+    showValue: chart.kind === "stacked" ? false : base.showValue,
+    valAxisMinVal: chart.kind === "line" || chart.kind === "area" ? undefined : 0,
+  } as PptxGenJS.IChartOpts);
 }
 
-function addTable(pptx: PptxGenJS, slide: PptxGenJS.Slide, data: unknown) {
-  const rows = getRows(data).slice(0, 10);
-  if (!rows.length) return addFallback(pptx, slide, "Tabela");
-  const columns = Object.keys(rows[0]).slice(0, 6);
-  const tableRows: PptxGenJS.TableRow[] = [
-    columns.map((column) => ({
-      text: formatLabel(column),
-      options: { bold: true, color: COLORS.white, fill: { color: COLORS.primary } },
+function addTable(ctx: Ctx, slide: PptxGenJS.Slide, spec: Extract<SlideSpec, { type: "table" }>) {
+  const t = THEME_HEX[ctx.theme];
+  const rows = spec.table.rows.slice(0, 12);
+  const fontSize = PT(rows.length > 9 ? 14 : 16);
+  const header = spec.table.columns.map((col) => ({
+    text: col,
+    options: { bold: true, color: "FFFFFF", fill: { color: t.primary }, fontFace: FONT, fontSize },
+  }));
+  const body = rows.map((r, i) =>
+    r.map((cell, j) => ({
+      text: cell,
+      options: {
+        color: t.text,
+        bold: j === 0,
+        fill: { color: i % 2 ? t.card : t.bg },
+        fontFace: FONT,
+        fontSize,
+      },
     })),
-    ...rows.map((row) => columns.map((column) => ({
-      text: formatValue(row[column]),
-      options: { color: COLORS.white, fill: { color: COLORS.card } },
-    }))),
-  ];
-
-  slide.addTable(tableRows, {
-    x: 0.65, y: 1.95, w: 12, h: 4.7,
-    border: { type: "solid", color: COLORS.border, pt: 1 },
-    fontFace: "Arial", fontSize: 8, color: COLORS.white, margin: 0.08,
+  );
+  slide.addTable([header, ...body] as PptxGenJS.TableRow[], {
+    x: IN(CONTENT.x),
+    y: IN(CONTENT.y),
+    w: IN(CONTENT.w),
+    border: { type: "solid", pt: 0.5, color: t.border },
+    margin: 0.08,
+    rowH: IN(rows.length > 9 ? 34 : 38),
+    autoPage: false,
   });
+  if (spec.table.rows.length > rows.length) {
+    slide.addText(`+ ${spec.table.rows.length - rows.length} linhas não exibidas`, {
+      x: IN(CONTENT.x),
+      y: IN(CONTENT.y + CONTENT.h - 10),
+      w: IN(600),
+      h: IN(20),
+      fontFace: FONT,
+      fontSize: PT(13),
+      color: t.muted,
+      margin: 0,
+    });
+  }
 }
 
-function addRanking(pptx: PptxGenJS, slide: PptxGenJS.Slide, data: unknown) {
-  const rows = getRows(data).slice(0, 8);
-  if (!rows.length) return addFallback(pptx, slide, "Ranking");
+function addBullets(ctx: Ctx, slide: PptxGenJS.Slide, bullets: string[]) {
+  const t = THEME_HEX[ctx.theme];
+  slide.addShape(ctx.pptx.ShapeType.roundRect, {
+    x: IN(CONTENT.x),
+    y: IN(CONTENT.y),
+    w: IN(CONTENT.w),
+    h: IN(CONTENT.h),
+    fill: { color: t.card },
+    line: { color: t.border, width: 0.75 },
+    rectRadius: 0.12,
+  });
+  const fontSize = PT(bullets.length > 7 ? 20 : 24);
+  slide.addText(
+    bullets.map((b) => ({
+      text: b,
+      options: {
+        bullet: { code: "25A0" },
+        color: t.text,
+        paraSpaceAfter: bullets.length > 7 ? 6 : 12,
+      },
+    })),
+    {
+      x: IN(CONTENT.x + 34),
+      y: IN(CONTENT.y + 28),
+      w: IN(CONTENT.w - 68),
+      h: IN(CONTENT.h - 56),
+      fontFace: FONT,
+      fontSize,
+      valign: "top",
+      margin: 0,
+      color: t.text,
+    },
+  );
+}
 
-  rows.forEach((row, index) => {
-    const label = String(row.fornecedor ?? row.nome ?? row.label ?? `Posição ${index + 1}`);
-    const number = row.indiceNC ?? row.valor ?? row.total;
-    const y = 1.9 + index * 0.58;
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x: 0.8, y, w: 11.7, h: 0.48, rectRadius: 0.04,
-      fill: { color: COLORS.card }, line: { color: COLORS.border },
-    });
-    slide.addText(String(index + 1), {
-      x: 1, y: y + 0.12, w: 0.3, h: 0.18,
-      fontSize: 8, bold: true, color: COLORS.primary, margin: 0, align: "center",
-    });
-    slide.addText(label, {
-      x: 1.5, y: y + 0.1, w: 8.5, h: 0.22,
-      fontSize: 9, bold: true, color: COLORS.white, margin: 0, fit: "shrink",
-    });
-    if (number !== undefined) {
-      slide.addText(typeof number === "number" ? `${Number(number).toFixed(1)}%` : formatValue(number), {
-        x: 10.5, y: y + 0.1, w: 1.6, h: 0.22,
-        fontSize: 9, bold: true, color: COLORS.white, margin: 0, align: "right",
+function addBody(ctx: Ctx, slide: PptxGenJS.Slide, spec: SlideSpec) {
+  switch (spec.type) {
+    case "kpis":
+      addKpis(ctx, slide, spec.items, CONTENT);
+      break;
+    case "chart": {
+      const side = spec.highlights?.length ? 300 : 0;
+      addChart(ctx, slide, spec.chart, {
+        x: CONTENT.x,
+        y: CONTENT.y,
+        w: CONTENT.w - side - (side ? 24 : 0),
+        h: CONTENT.h,
       });
+      if (side)
+        addKpis(
+          ctx,
+          slide,
+          spec.highlights!,
+          { x: CONTENT.x + CONTENT.w - side, y: CONTENT.y, w: side, h: CONTENT.h },
+          1,
+          true,
+        );
+      break;
     }
-  });
+    case "table":
+      addTable(ctx, slide, spec);
+      break;
+    case "text":
+      addBullets(ctx, slide, spec.bullets);
+      break;
+  }
 }
 
-function addTextSlide(pptx: PptxGenJS, slide: PptxGenJS.Slide, item: PresentationSlide) {
-  const record = asRecord(item.data);
-  const pontos = Array.isArray(record?.pontos) ? record?.pontos.map(String) : [];
-  const text = pontos.length ? pontos.map((p, i) => `${i + 1}. ${p}`).join("\n\n") : item.notes || "Adicione observações no Editor de Apresentação.";
-
-  slide.addShape(pptx.ShapeType.roundRect, {
-    x: 0.8, y: 2, w: 11.7, h: 4.2, rectRadius: 0.08,
-    fill: { color: COLORS.card }, line: { color: COLORS.border },
-  });
-  slide.addText(text, {
-    x: 1.1, y: 2.3, w: 11.1, h: 3.5,
-    fontFace: "Arial", fontSize: 14, color: COLORS.white,
-    valign: "middle", margin: 0.05, fit: "shrink", breakLine: false,
-  });
-}
-
-function addFallback(pptx: PptxGenJS, slide: PptxGenJS.Slide, label: string) {
-  slide.addShape(pptx.ShapeType.roundRect, {
-    x: 0.8, y: 2, w: 11.7, h: 4.2, rectRadius: 0.08,
-    fill: { color: COLORS.card }, line: { color: COLORS.border },
-  });
-  slide.addText(label, {
-    x: 1, y: 3.5, w: 11.3, h: 0.5,
-    fontFace: "Arial", fontSize: 22, bold: true,
-    color: COLORS.muted, align: "center", margin: 0,
-  });
-}
-
-export async function generatePresentationPptx(slides: PresentationSlide[]) {
+export async function generatePresentationPptx(
+  slides: PptxSlideInput[],
+  options: { theme?: SlideTheme; fileName?: string; title?: string; output?: "file" | "blob" } = {},
+): Promise<Blob | void> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
-  pptx.author = "QualiHub";
+  pptx.author = "QualiHub — Frasle Mobility";
   pptx.company = "Frasle Mobility";
-  pptx.subject = "Apresentação da Qualidade";
-  pptx.title = "QualiHub — Gestão da Qualidade";
-  pptx.theme = { headFontFace: "Arial", bodyFontFace: "Arial" };
+  pptx.title = options.title ?? "Apresentação QualiHub";
 
-  slides.forEach((item, index) => {
+  let logo: string | null = null;
+  let logoRatio = 3;
+  try {
+    const loaded = await loadLogo(logoUrl);
+    logo = loaded.data;
+    logoRatio = loaded.ratio;
+  } catch {
+    logo = null;
+  }
+
+  const ctx: Ctx = {
+    pptx,
+    theme: options.theme ?? "dark",
+    logo,
+    logoRatio,
+    dateLabel: new Date().toLocaleDateString("pt-BR"),
+  };
+
+  const contentTotal = slides.filter(
+    (s) => s.spec.type !== "cover" && s.spec.type !== "section",
+  ).length;
+  let n = 0;
+  for (const item of slides) {
     const slide = pptx.addSlide();
-    addBase(pptx, slide, item, index + 1);
-
-    switch (item.type) {
-      case "kpi":
-      case "kpi-group":
-        addKpis(pptx, slide, item.data);
-        break;
-      case "chart":
-        addChart(pptx, slide, item);
-        break;
-      case "table":
-      case "timeline":
-        addTable(pptx, slide, item.data);
-        break;
-      case "ranking":
-        addRanking(pptx, slide, item.data);
-        break;
-      case "text":
-      case "ai-summary":
-      case "manual":
-        addTextSlide(pptx, slide, item);
-        break;
-      default:
-        addFallback(pptx, slide, item.type);
+    if (item.spec.type === "cover" || item.spec.type === "section") {
+      addCover(ctx, slide, item.spec);
+    } else {
+      n += 1;
+      addChrome(ctx, slide, item, n, contentTotal);
+      addBody(ctx, slide, item.spec);
     }
-  });
+    if (item.notes?.trim()) slide.addNotes(item.notes.trim());
+  }
 
-  const safeDate = new Date().toLocaleDateString("pt-BR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-  }).replace(/\//g, "-");
-
-  await pptx.writeFile({ fileName: `QualiHub-Apresentacao-${safeDate}.pptx` });
+  if (options.output === "blob") return (await pptx.write({ outputType: "blob" })) as Blob;
+  const stamp = new Date().toISOString().slice(0, 10);
+  await pptx.writeFile({ fileName: options.fileName ?? `QualiHub-Apresentacao-${stamp}.pptx` });
 }
+
+/** Valor formatado igual ao slide (útil para textos de apoio). */
+export const fmtSlideValue = formatValue;

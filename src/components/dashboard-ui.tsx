@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { calcPPM } from "@/lib/idf-calc";
 import type { IDFRow } from "@/lib/types";
@@ -7,31 +7,72 @@ import {
   ArrowRight,
   ArrowUp,
   BarChart3,
-  CalendarDays,
+  Gauge,
   Printer,
   ScanSearch,
   Target,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useFilters } from "@/hooks/use-dashboard";
-import frasleLogo from "@/assets/print/frasle-mobility.png";
-import randoncorpLogo from "@/assets/print/randoncorp.png";
+import {
+  DEFAULT_PRINT_ACCENT,
+  getPrintAccent,
+  printElement,
+  setPrintAccent,
+  type PrintAppearance,
+} from "@/lib/print";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  inspectionDate,
+  monthlyPpm,
+  ppmTotals,
+  ppmValue,
+  referenceYear,
+  type PpmMode,
+} from "@/lib/monthly-metrics";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const PRINT_ACCENT_KEY = "print-accent-color";
-const DEFAULT_PRINT_ACCENT = "#FFC20E";
 const PRINT_ACCENT_PRESETS = [
+  { label: "Vermelho Frasle", value: DEFAULT_PRINT_ACCENT },
   { label: "Amarelo Frasle", value: "#FFC20E" },
+  { label: "Grafite", value: "#1f2937" },
   { label: "Azul Corporativo", value: "#1e3a8a" },
-  { label: "Verde Qualidade", value: "#10b981" },
-  { label: "Vermelho Alerta", value: "#dc2626" },
-  { label: "Cinza Neutro", value: "#475569" },
-  { label: "Preto", value: "#0f172a" },
+  { label: "Verde Qualidade", value: "#059669" },
 ];
 
-function applyPrintAccent(color: string) {
-  document.documentElement.style.setProperty("--print-accent", color);
-}
+/** Estilo padrão dos tooltips do Recharts (segue o tema). */
+export const chartTooltip = {
+  contentStyle: {
+    background: "var(--color-popover)",
+    border: "1px solid var(--color-border)",
+    borderRadius: 10,
+    fontSize: 12,
+    color: "var(--color-popover-foreground)",
+    boxShadow: "0 12px 32px -14px rgb(0 0 0 / 0.35)",
+  },
+  labelStyle: { color: "var(--color-popover-foreground)", fontWeight: 600 },
+  itemStyle: { color: "var(--color-popover-foreground)" },
+  cursor: { fill: "color-mix(in oklab, var(--color-muted-foreground) 10%, transparent)" },
+};
 
-function formatPeriodLabel(from: string, to: string): string {
+export const numberBR = (value: number) => Number(value || 0).toLocaleString("pt-BR");
+
+export function formatPeriodLabel(from: string, to: string): string {
   const fmt = (s: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
     const [y, m, d] = s.split("-");
@@ -45,39 +86,6 @@ function formatPeriodLabel(from: string, to: string): string {
   return "Período completo (sem filtro de data)";
 }
 
-async function triggerPrint(el: HTMLElement | null) {
-  if (!el) return;
-  // Dispensa qualquer tooltip/hover ativo antes de imprimir.
-  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-  // Move o mouse fora da área (sintético) para forçar saída de hover/tooltip.
-  el.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
-  document.body.dispatchEvent(
-    new MouseEvent("mousemove", { bubbles: true, clientX: 0, clientY: 0 }),
-  );
-
-  const preload = (src: string) =>
-    new Promise<void>((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve();
-      img.onerror = () => resolve();
-      img.src = src;
-    });
-  await Promise.all([preload(frasleLogo), preload(randoncorpLogo)]);
-
-  el.setAttribute("data-print-target", "true");
-  document.documentElement.classList.add("printing-section");
-  const cleanup = () => {
-    el.removeAttribute("data-print-target");
-    document.documentElement.classList.remove("printing-section");
-    window.removeEventListener("afterprint", cleanup);
-  };
-  window.addEventListener("afterprint", cleanup);
-  // Aguarda 2 frames + 350ms para que o Recharts re-renderize sem animação
-  // (animation/transition foram desligadas pelo CSS .printing-section).
-  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-  setTimeout(() => window.print(), 350);
-}
-
 export function DeltaBadge({
   current,
   previous,
@@ -88,10 +96,10 @@ export function DeltaBadge({
   invert?: boolean; // true = subir é ruim (alertas, NCs)
 }) {
   if (previous === 0 && current === 0) {
-    return <span className="text-[11px] text-slate-500">sem variação</span>;
+    return <span className="text-[11px] text-muted-foreground">sem variação</span>;
   }
   if (previous === 0) {
-    return <span className="text-[11px] text-sky-400 font-medium">novo período</span>;
+    return <span className="text-[11px] font-medium text-info">novo período</span>;
   }
   const pct = ((current - previous) / previous) * 100;
   const up = pct > 0.05;
@@ -99,22 +107,120 @@ export function DeltaBadge({
   const good = invert ? down : up;
   const bad = invert ? up : down;
   const color =
-    !up && !down
-      ? "text-slate-400"
-      : good
-        ? "text-emerald-400"
-        : bad
-          ? "text-red-400"
-          : "text-slate-400";
+    !up && !down ? "text-muted-foreground" : good ? "text-success" : bad ? "text-destructive" : "";
   const Icon = up ? ArrowUp : down ? ArrowDown : ArrowRight;
   return (
     <span
-      className={cn("inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums", color)}
+      className={cn(
+        "inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums",
+        color,
+      )}
     >
       <Icon className="h-3 w-3" />
       {Math.abs(pct).toFixed(1)}%
-      <span className="text-slate-500 font-normal ml-1">vs {previous.toLocaleString("pt-BR")}</span>
+      <span className="ml-1 font-normal text-muted-foreground">
+        vs {previous.toLocaleString("pt-BR")}
+      </span>
     </span>
+  );
+}
+
+type Tone = "default" | "success" | "warning" | "destructive" | "info" | "ppm";
+
+const TONE_TEXT: Record<Tone, string> = {
+  default: "text-foreground",
+  success: "text-success",
+  warning: "text-warning",
+  destructive: "text-destructive",
+  info: "text-info",
+  ppm: "text-[var(--chart-ppm)]",
+};
+const TONE_BG: Record<Tone, string> = {
+  default: "bg-muted-foreground",
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  info: "bg-info",
+  ppm: "bg-[var(--chart-ppm)]",
+};
+
+/** Moldura comum dos cards de indicador. */
+function KpiFrame({
+  tone,
+  onClick,
+  className,
+  title,
+  children,
+}: {
+  tone: Tone;
+  onClick?: () => void;
+  className?: string;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={title}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.target !== event.currentTarget) return;
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "surface card-premium group flex min-h-[156px] flex-col overflow-hidden p-4",
+        onClick &&
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        className,
+      )}
+    >
+      {/* Faixa de cor do indicador */}
+      <span className={cn("absolute inset-x-0 top-0 h-[3px] opacity-80", TONE_BG[tone])} />
+      <span
+        className={cn(
+          "pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full opacity-[0.08] blur-2xl transition-opacity group-hover:opacity-[0.16]",
+          TONE_BG[tone],
+        )}
+      />
+      {children}
+    </div>
+  );
+}
+
+function KpiHeader({ label, tone, icon }: { label: ReactNode; tone: Tone; icon?: ReactNode }) {
+  return (
+    <div className="relative flex min-h-[28px] items-start justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground">
+        <span className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", TONE_BG[tone])} />
+        <span className="truncate">{label}</span>
+      </div>
+      {icon && (
+        <div
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background/60",
+            TONE_TEXT[tone],
+          )}
+        >
+          {icon}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiAction({ label }: { label: string }) {
+  return (
+    <div className="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-wider text-primary opacity-70 transition-opacity group-hover:opacity-100">
+      {label} →
+    </div>
   );
 }
 
@@ -131,87 +237,70 @@ export function KpiCard({
   label: string;
   value: ReactNode;
   hint?: ReactNode;
-  tone?: "default" | "success" | "warning" | "destructive" | "info";
+  tone?: Exclude<Tone, "ppm">;
   icon?: ReactNode;
   delta?: ReactNode;
   onClick?: () => void;
   actionLabel?: string;
 }) {
-  const accent: Record<string, string> = {
-    default: "text-foreground",
-    success: "text-emerald-600 dark:text-emerald-400",
-    warning: "text-amber-600 dark:text-amber-400",
-    destructive: "text-red-600 dark:text-red-400",
-    info: "text-sky-600 dark:text-sky-400",
-  };
-  const dot: Record<string, string> = {
-    default: "bg-slate-400",
-    success: "bg-emerald-400",
-    warning: "bg-amber-400",
-    destructive: "bg-red-400",
-    info: "bg-sky-400",
-  };
   return (
-    <div
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onClick={onClick}
-      onKeyDown={
-        onClick
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-      className={cn(
-        "card-premium group relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-12px_rgba(56,189,248,0.28)] hover:border-primary/30 flex flex-col min-h-[152px]",
-        onClick &&
-          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-      )}
-    >
-      <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="flex items-start justify-between gap-2 min-h-[28px]">
-        <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2 leading-tight min-w-0">
-          <span className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", dot[tone])} />
-          <span className="truncate">{label}</span>
-        </div>
-        {icon && (
-          <div
-            className={cn(
-              "opacity-90 h-7 w-7 rounded-lg flex items-center justify-center bg-muted/70 dark:bg-white/5 shrink-0",
-              accent[tone],
-            )}
-          >
-            {icon}
-          </div>
-        )}
-      </div>
+    <KpiFrame tone={tone} onClick={onClick}>
+      <KpiHeader label={label} tone={tone} icon={icon} />
       <div
         className={cn(
-          "mt-3 font-display font-bold tabular-nums tracking-tight leading-none truncate",
-          accent[tone],
+          "relative mt-3 truncate font-display font-bold leading-none tracking-tight tabular-nums",
+          TONE_TEXT[tone],
         )}
-        style={{ fontSize: "clamp(1.875rem, 2.6vw, 2.625rem)" }}
+        style={{
+          fontSize:
+            typeof value === "string" && value.length > 10
+              ? "clamp(1.35rem, 1.6vw, 1.9rem)"
+              : "clamp(1.875rem, 2.5vw, 2.5rem)",
+        }}
+        title={typeof value === "string" ? value : undefined}
       >
-        {value}
+        {typeof value === "number" ? value.toLocaleString("pt-BR") : value}
       </div>
-      {hint && <div className="mt-1.5 text-[12px] text-muted-foreground line-clamp-2">{hint}</div>}
-      {delta && <div className="mt-auto pt-2">{delta}</div>}
-      {onClick && (
-        <div
-          className={cn(
-            "text-[10px] font-semibold uppercase tracking-wider text-primary opacity-70 group-hover:opacity-100",
-            delta ? "mt-2" : "mt-auto pt-2",
-          )}
-        >
-          {actionLabel} →
-        </div>
+      {hint && (
+        <div className="relative mt-1.5 line-clamp-2 text-[12px] text-muted-foreground">{hint}</div>
       )}
-    </div>
+      {delta && <div className="relative mt-auto pt-2">{delta}</div>}
+      {onClick && !delta && <KpiAction label={actionLabel} />}
+    </KpiFrame>
   );
+}
+
+const MES_ABREV = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
+
+/** "dez/2025 a out/2026" — meses de inspeção cobertos pelas linhas. */
+function periodoDasLinhas(rows: IDFRow[]) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const r of rows) {
+    const t = inspectionDate(r)?.getTime();
+    if (t == null) continue;
+    if (t < min) min = t;
+    if (t > max) max = t;
+  }
+  if (!Number.isFinite(min)) return null;
+  const fmt = (t: number) => {
+    const d = new Date(t);
+    return `${MES_ABREV[d.getMonth()]}/${d.getFullYear()}`;
+  };
+  return fmt(min) === fmt(max) ? fmt(min) : `${fmt(min)} a ${fmt(max)}`;
 }
 
 export function PpmCard({
@@ -225,57 +314,251 @@ export function PpmCard({
 }) {
   const { ppm, ncQt, totalQt } = calcPPM(idf);
   const prev = previous ? calcPPM(previous) : null;
+  const periodo = useMemo(() => periodoDasLinhas(idf), [idf]);
   return (
-    <div
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onClick={onClick}
-      onKeyDown={
-        onClick
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-      className={cn(
-        "card-premium relative rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm flex flex-col min-h-[152px]",
-        onClick &&
-          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
-          <span
-            className="inline-block h-1.5 w-1.5 rounded-full"
-            style={{ background: "var(--color-chart-ppm)" }}
-          />
-          PPM
-        </div>
-        <Target className="h-4 w-4" style={{ color: "var(--color-chart-ppm)" }} />
-      </div>
+    <KpiFrame tone="ppm" onClick={onClick}>
+      <KpiHeader label="PPM" tone="ppm" icon={<Target className="h-4 w-4" />} />
       <div
-        className="mt-2 text-3xl font-display font-bold tabular-nums"
-        style={{ color: "var(--color-chart-ppm)" }}
+        className="relative mt-3 font-display font-bold leading-none tracking-tight tabular-nums text-[var(--chart-ppm)]"
+        style={{ fontSize: "clamp(1.875rem, 2.5vw, 2.5rem)" }}
       >
         {ppm.toLocaleString("pt-BR")}
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">
-        {ncQt.toLocaleString("pt-BR")} NC / {totalQt.toLocaleString("pt-BR")} insp.
+      <div className="relative mt-1.5 text-[12px] text-muted-foreground">
+        {ncQt.toLocaleString("pt-BR")} peças NC / {totalQt.toLocaleString("pt-BR")} inspecionadas
+        {periodo && <span className="block text-[11px]">Período: {periodo} (por peças)</span>}
       </div>
       {prev && (
-        <div className="mt-2">
+        <div className="relative mt-auto pt-2">
           <DeltaBadge current={ppm} previous={prev.ppm} invert />
         </div>
       )}
-      {onClick && (
-        <div className="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
-          Ver análise →
+      {onClick && !prev && <KpiAction label="Ver análise" />}
+    </KpiFrame>
+  );
+}
+
+/**
+ * PPM mês a mês com alternância entre:
+ *  - SKU: inspeções reprovadas ÷ inspeções × 1.000.000 (cada linha do IDF é uma inspeção);
+ *  - Peças: peças NC ÷ peças inspecionadas × 1.000.000.
+ */
+export function PpmMensalCard({ rows }: { rows: IDFRow[] }) {
+  const [mode, setMode] = useState<PpmMode>("sku");
+  const [open, setOpen] = useState(false);
+  const year = useMemo(() => referenceYear(rows), [rows]);
+  const months = useMemo(() => monthlyPpm(rows, year), [rows, year]);
+  const withData = months.filter((m) => m.temDados);
+  const last = withData[withData.length - 1];
+  const before = withData[withData.length - 2];
+  const value = last ? ppmValue(last, mode) : 0;
+  const prevValue = before ? ppmValue(before, mode) : 0;
+  const chart = months.map((m) => ({ mes: m.mes, ppm: ppmValue(m, mode), atual: m === last }));
+
+  return (
+    <>
+      <KpiFrame tone="ppm" onClick={() => setOpen(true)} title="Abrir PPM mês a mês">
+        <div className="relative flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--chart-ppm)]" />
+            <span className="truncate">PPM mensal</span>
+          </div>
+          <div className="segmented" onClick={(e) => e.stopPropagation()}>
+            <button type="button" data-active={mode === "sku"} onClick={() => setMode("sku")}>
+              SKU
+            </button>
+            <button type="button" data-active={mode === "pecas"} onClick={() => setMode("pecas")}>
+              Peças
+            </button>
+          </div>
         </div>
-      )}
-    </div>
+        <div className="relative mt-2 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-display text-[2rem] font-bold leading-none tracking-tight tabular-nums text-[var(--chart-ppm)]">
+              {value.toLocaleString("pt-BR")}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              {last ? `${last.mesLongo}/${year}` : "Sem inspeções no ano"}
+            </div>
+          </div>
+          {before && <DeltaBadge current={value} previous={prevValue} invert />}
+        </div>
+        <div className="relative mt-2 h-[46px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chart} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+              <Tooltip
+                {...chartTooltip}
+                formatter={(v: number) => [
+                  v.toLocaleString("pt-BR"),
+                  mode === "sku" ? "PPM (SKU)" : "PPM (peças)",
+                ]}
+              />
+              <Bar dataKey="ppm" radius={[3, 3, 0, 0]}>
+                {chart.map((c) => (
+                  <Cell key={c.mes} fill="var(--chart-ppm)" fillOpacity={c.atual ? 1 : 0.38} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </KpiFrame>
+      <PpmMensalDialog
+        open={open}
+        onOpenChange={setOpen}
+        rows={rows}
+        year={year}
+        mode={mode}
+        onMode={setMode}
+      />
+    </>
+  );
+}
+
+function PpmMensalDialog({
+  open,
+  onOpenChange,
+  rows,
+  year,
+  mode,
+  onMode,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  rows: IDFRow[];
+  year: number;
+  mode: PpmMode;
+  onMode: (m: PpmMode) => void;
+}) {
+  const months = useMemo(() => monthlyPpm(rows, year), [rows, year]);
+  const totals = ppmTotals(months);
+  const semData = useMemo(() => rows.filter((r) => !inspectionDate(r)).length, [rows]);
+  // O card "PPM" usa todas as linhas do recorte (inclusive outros anos e linhas sem data).
+  const todo = useMemo(() => {
+    const pecas = calcPPM(rows);
+    const rep = rows.filter((r) => String(r.status).toLowerCase().includes("reprov")).length;
+    return {
+      ppmPecas: pecas.ppm,
+      ppmSku: rows.length ? Math.round((rep / rows.length) * 1_000_000) : 0,
+    };
+  }, [rows]);
+  const periodoTodo = useMemo(() => periodoDasLinhas(rows) ?? "todas as linhas", [rows]);
+  const chart = months.map((m) => ({ mes: m.mes, ppm: ppmValue(m, mode) }));
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Gauge className="h-5 w-5 text-[var(--chart-ppm)]" /> PPM mês a mês — {year}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "sku"
+              ? "Por SKU: cada linha da aba IDF conta como 1 SKU. PPM = linhas reprovadas ÷ linhas do mês × 1.000.000."
+              : "Por peças: peças das inspeções reprovadas ÷ peças inspecionadas × 1.000.000."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div className="segmented">
+            <button type="button" data-active={mode === "sku"} onClick={() => onMode("sku")}>
+              Calculado por SKU
+            </button>
+            <button type="button" data-active={mode === "pecas"} onClick={() => onMode("pecas")}>
+              Calculado por peças
+            </button>
+          </div>
+          <div className="text-right">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Acumulado de {year}
+            </div>
+            <div className="font-display text-xl font-bold tabular-nums text-[var(--chart-ppm)]">
+              {(mode === "sku" ? totals.ppmSku : totals.ppmPecas).toLocaleString("pt-BR")}
+            </div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">
+              Todo o período ({periodoTodo}):{" "}
+              <span className="font-semibold text-foreground">
+                {(mode === "sku" ? todo.ppmSku : todo.ppmPecas).toLocaleString("pt-BR")}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="h-[240px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chart} margin={{ top: 18, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="mes" tickLine={false} axisLine={false} fontSize={12} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                fontSize={11}
+                width={56}
+                tickFormatter={(v) => Number(v).toLocaleString("pt-BR")}
+              />
+              <Tooltip
+                {...chartTooltip}
+                formatter={(v: number) => [v.toLocaleString("pt-BR"), "PPM"]}
+              />
+              <Bar
+                dataKey="ppm"
+                fill="var(--chart-ppm)"
+                radius={[5, 5, 0, 0]}
+                label={{
+                  position: "top",
+                  fontSize: 10,
+                  fill: "var(--chart-axis)",
+                  formatter: (v: number) => (v ? v.toLocaleString("pt-BR") : ""),
+                }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          O mês é definido pela data de inspeção de cada linha.
+          {semData > 0 &&
+            ` ${semData.toLocaleString("pt-BR")} linhas ainda sem data de inspeção não entram em nenhum mês.`}
+        </p>
+        <div className="max-h-[260px] overflow-auto rounded-lg border">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-muted text-muted-foreground">
+              <tr className="text-left">
+                <th className="px-3 py-2">Mês</th>
+                <th className="px-3 py-2 text-right">Linhas (SKUs)</th>
+                <th className="px-3 py-2 text-right">Linhas reprovadas</th>
+                <th className="px-3 py-2 text-right">PPM SKU</th>
+                <th className="px-3 py-2 text-right">Peças</th>
+                <th className="px-3 py-2 text-right">Peças NC</th>
+                <th className="px-3 py-2 text-right">PPM peças</th>
+              </tr>
+            </thead>
+            <tbody>
+              {months.map((m) => (
+                <tr key={m.mes} className={cn("border-t", !m.temDados && "text-muted-foreground")}>
+                  <td className="px-3 py-1.5 font-medium">{m.mesLongo}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{numberBR(m.inspecoes)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{numberBR(m.reprovadas)}</td>
+                  <td
+                    className={cn(
+                      "px-3 py-1.5 text-right font-semibold tabular-nums",
+                      mode === "sku" && "text-[var(--chart-ppm)]",
+                    )}
+                  >
+                    {numberBR(m.ppmSku)}
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{numberBR(m.pecas)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{numberBR(m.pecasNc)}</td>
+                  <td
+                    className={cn(
+                      "px-3 py-1.5 text-right font-semibold tabular-nums",
+                      mode === "pecas" && "text-[var(--chart-ppm)]",
+                    )}
+                  >
+                    {numberBR(m.ppmPecas)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -294,92 +577,60 @@ export function EficienciaInspecaoCard({
   onClick?: () => void;
   previousPct?: number | null;
 }) {
-  const pct = iniciadas > 0 ? (criadas / iniciadas) * 100 : 0;
+  // Eficiência = inspecionadas ÷ recebidas (igual ao gráfico mensal).
+  const pct = criadas > 0 ? (iniciadas / criadas) * 100 : 0;
   const pctRounded = Math.round(pct * 100) / 100;
   const pend = pendentes ?? 0;
-  const tone =
-    pct >= 95
-      ? {
-          text: "text-emerald-600 dark:text-emerald-400",
-          dot: "bg-emerald-500",
-          ring: "ring-emerald-500/30",
-          glow: "from-emerald-500/12",
-        }
-      : pct >= 85
-        ? {
-            text: "text-amber-600 dark:text-amber-400",
-            dot: "bg-amber-500",
-            ring: "ring-amber-500/30",
-            glow: "from-amber-500/12",
-          }
-        : {
-            text: "text-red-600 dark:text-red-400",
-            dot: "bg-red-500",
-            ring: "ring-red-500/30",
-            glow: "from-red-500/12",
-          };
+  const tone: Tone = pct >= 95 ? "success" : pct >= 85 ? "warning" : "destructive";
   const gap = pctRounded - meta;
   const trend =
     previousPct == null
       ? null
       : pctRounded > previousPct + 0.05
-        ? { Icon: ArrowUp, color: "text-emerald-400" }
+        ? { Icon: ArrowUp, color: "text-success" }
         : pctRounded < previousPct - 0.05
-          ? { Icon: ArrowDown, color: "text-red-400" }
-          : { Icon: ArrowRight, color: "text-slate-400" };
+          ? { Icon: ArrowDown, color: "text-destructive" }
+          : { Icon: ArrowRight, color: "text-muted-foreground" };
 
-const tooltip =
-  `Eficiência = (Inspecionados ÷ Recebidos) × 100\n` +
-  `${iniciadas.toLocaleString("pt-BR")} ÷ ${criadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(2)}%`;
+  const tooltip =
+    `Eficiência = (Inspecionados ÷ Recebidos) × 100\n` +
+    `${iniciadas.toLocaleString("pt-BR")} ÷ ${criadas.toLocaleString("pt-BR")} × 100 = ${pctRounded.toFixed(2)}%`;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={tooltip}
-      className={cn(
-        "card-premium group relative text-left rounded-xl border border-border bg-card dark:border-white/10 dark:bg-[#0b1220] p-4 overflow-hidden shadow-sm ring-1 transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer w-full flex flex-col min-h-[152px]",
-        tone.ring,
-      )}
-    >
-      <div
-        className={cn(
-          "absolute inset-0 bg-gradient-to-br to-transparent opacity-60 pointer-events-none",
-          tone.glow,
-        )}
+    <KpiFrame tone={tone} onClick={onClick} title={tooltip}>
+      <KpiHeader
+        label="Eficiência de inspeção"
+        tone={tone}
+        icon={<ScanSearch className="h-4 w-4" />}
       />
-      <div className="relative flex items-start justify-between">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
-          <span className={cn("inline-block h-1.5 w-1.5 rounded-full animate-pulse", tone.dot)} />
-          Eficiência de Inspeção
-        </div>
-        <ScanSearch className={cn("h-4 w-4 opacity-80", tone.text)} />
-      </div>
-      <div className="relative mt-2 flex items-baseline gap-2">
+      <div className="relative mt-3 flex items-baseline gap-2">
         <span
-          key={pctRounded}
-          className={cn("text-3xl font-display font-bold tabular-nums animate-fade-in", tone.text)}
+          className={cn(
+            "font-display font-bold leading-none tracking-tight tabular-nums",
+            TONE_TEXT[tone],
+          )}
+          style={{ fontSize: "clamp(1.875rem, 2.5vw, 2.5rem)" }}
         >
           {pctRounded.toFixed(2)}%
         </span>
         {trend && <trend.Icon className={cn("h-4 w-4", trend.color)} />}
       </div>
-      <div className="relative mt-2 h-1.5 w-full rounded-full bg-muted dark:bg-white/5 overflow-hidden">
+      <div className="relative mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full transition-all duration-700 ease-out", tone.dot)}
+          className={cn("h-full rounded-full transition-all duration-700 ease-out", TONE_BG[tone])}
           style={{ width: `${Math.min(100, Math.max(0, pctRounded))}%` }}
         />
       </div>
-      <div className="relative mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+      <div className="relative mt-2.5 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
         <div>
           <div>Recebidas</div>
-          <div className="text-foreground font-semibold tabular-nums">
+          <div className="font-semibold tabular-nums text-foreground">
             {criadas.toLocaleString("pt-BR")}
           </div>
         </div>
         <div>
           <div>Inspec.</div>
-          <div className="text-foreground font-semibold tabular-nums">
+          <div className="font-semibold tabular-nums text-foreground">
             {iniciadas.toLocaleString("pt-BR")}
           </div>
         </div>
@@ -388,223 +639,254 @@ const tooltip =
           <div
             className={cn(
               "font-semibold tabular-nums",
-              pend > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground",
+              pend > 0 ? "text-warning" : "text-foreground",
             )}
           >
             {pend.toLocaleString("pt-BR")}
           </div>
         </div>
       </div>
-      <div className="relative mt-2 text-[11px] flex items-center gap-1">
+      <div className="relative mt-auto flex items-center gap-1 pt-2 text-[11px]">
         <span className="text-muted-foreground">Meta {meta}%:</span>
         <span
           className={cn(
             "font-semibold tabular-nums",
-            gap >= 0 ? "text-emerald-400" : "text-red-400",
+            gap >= 0 ? "text-success" : "text-destructive",
           )}
         >
           {gap >= 0 ? "+" : ""}
           {gap.toFixed(1)} p.p.
         </span>
       </div>
-    </button>
+    </KpiFrame>
+  );
+}
+
+/** Botão "Imprimir" com escolha da cor da faixa. Imprime o elemento `target`. */
+export function PrintButton({
+  target,
+  title,
+  subtitle,
+  orientation = "landscape",
+  label = "Imprimir",
+  className,
+  defaultAppearance = "light",
+}: {
+  target: () => HTMLElement | null;
+  title: string;
+  subtitle?: string;
+  orientation?: "landscape" | "portrait";
+  label?: string;
+  className?: string;
+  /** "light" = papel claro (econômico); "screen" = igual ao que aparece na tela. */
+  defaultAppearance?: PrintAppearance;
+}) {
+  const [accent, setAccent] = useState<string>(DEFAULT_PRINT_ACCENT);
+  const [appearance, setAppearance] = useState<PrintAppearance>(defaultAppearance);
+  const [layout, setLayout] = useState<"landscape" | "portrait">(orientation);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => setAccent(getPrintAccent()), []);
+
+  const pick = (c: string) => {
+    setAccent(c);
+    setPrintAccent(c);
+  };
+
+  const run = async () => {
+    setOpen(false);
+    setBusy(true);
+    try {
+      await printElement(target(), { title, subtitle, orientation: layout, accent, appearance });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Imprimir (A4)"
+          aria-label={`Imprimir ${title}`}
+          disabled={busy}
+          className={cn(
+            "no-print inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60",
+            className,
+          )}
+        >
+          <Printer className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{busy ? "Preparando…" : label}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 space-y-3 rounded-xl p-3">
+        <div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Aparência
+          </div>
+          <div className="segmented flex w-full">
+            <button
+              type="button"
+              className="flex-1"
+              data-active={appearance === "screen"}
+              onClick={() => setAppearance("screen")}
+            >
+              Igual à tela
+            </button>
+            <button
+              type="button"
+              className="flex-1"
+              data-active={appearance === "light"}
+              onClick={() => setAppearance("light")}
+            >
+              Clara (econômica)
+            </button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Folha A4
+          </div>
+          <div className="segmented flex w-full">
+            <button
+              type="button"
+              className="flex-1"
+              data-active={layout === "landscape"}
+              onClick={() => setLayout("landscape")}
+            >
+              Paisagem
+            </button>
+            <button
+              type="button"
+              className="flex-1"
+              data-active={layout === "portrait"}
+              onClick={() => setLayout("portrait")}
+            >
+              Retrato
+            </button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Cor da faixa
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {PRINT_ACCENT_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => pick(p.value)}
+                title={p.label}
+                aria-label={`Cor ${p.label}`}
+                className={cn(
+                  "h-6 w-6 rounded-full border transition-transform",
+                  accent.toLowerCase() === p.value.toLowerCase()
+                    ? "scale-110 ring-2 ring-foreground ring-offset-2 ring-offset-popover"
+                    : "border-border/60 hover:scale-110",
+                )}
+                style={{ background: p.value }}
+              />
+            ))}
+            <label className="relative inline-flex items-center" title="Cor personalizada">
+              <input
+                type="color"
+                value={accent}
+                onChange={(e) => pick(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Escolher cor personalizada"
+              />
+              <span className="h-6 w-6 rounded-full border border-dashed border-border bg-gradient-to-br from-red-400 via-yellow-300 to-blue-500" />
+            </label>
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+            Cabeçalho com as logos Frasle Mobility e RandonCorp e rodapé FORM-CORP-213.
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border pt-2">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={run}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Imprimir
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
 export function SectionCard({
   title,
+  subtitle,
+  icon,
   action,
   children,
   className,
+  bodyClassName,
   printable = false,
   printTitle,
 }: {
   title: ReactNode;
+  subtitle?: ReactNode;
+  icon?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  bodyClassName?: string;
   printable?: boolean;
   printTitle?: string;
 }) {
   const ref = useRef<HTMLElement | null>(null);
-  const popRef = useRef<HTMLDivElement | null>(null);
-  const [accent, setAccent] = useState<string>(DEFAULT_PRINT_ACCENT);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    const stored =
-      typeof window !== "undefined" ? window.localStorage.getItem(PRINT_ACCENT_KEY) : null;
-    const initial = stored ?? DEFAULT_PRINT_ACCENT;
-    setAccent(initial);
-    applyPrintAccent(initial);
-  }, []);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-  const updateAccent = (c: string) => {
-    setAccent(c);
-    applyPrintAccent(c);
-    try {
-      window.localStorage.setItem(PRINT_ACCENT_KEY, c);
-    } catch {
-      /* ignore */
-    }
-  };
-  const handlePrint = () => {
-    setOpen(false);
-    triggerPrint(ref.current);
-  };
-
   const { filters } = useFilters();
   const periodo = formatPeriodLabel(filters.from, filters.to);
   const headingText = printTitle ?? (typeof title === "string" ? title : "Indicador");
 
   return (
-    <section ref={ref} className={cn("section-premium rounded-xl border bg-card", className)}>
-      <header className="flex items-center justify-between px-4 py-3 border-b">
-        <h2 className="text-sm font-display font-semibold">{title}</h2>
-        <div className="flex items-center gap-2">
+    <section ref={ref} className={cn("surface section-premium overflow-hidden", className)}>
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {icon && (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background/60 text-primary">
+              {icon}
+            </span>
+          )}
+          <div className="min-w-0">
+            <h2 className="truncate font-display text-sm font-semibold">{title}</h2>
+            {subtitle && (
+              <div className="truncate text-[11px] text-muted-foreground">{subtitle}</div>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           {action}
           {printable && (
-            <div ref={popRef} className="no-print relative">
-              <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                title="Imprimir este card (A4 paisagem)"
-                aria-label="Imprimir este card"
-                aria-expanded={open}
-                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Imprimir</span>
-              </button>
-              {open && (
-                <div
-                  role="dialog"
-                  aria-label="Opções de impressão"
-                  className="absolute right-0 top-full mt-2 z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg p-3 space-y-3"
-                >
-                  <div>
-                    <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                      Cor das faixas
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {PRINT_ACCENT_PRESETS.map((p) => (
-                        <button
-                          key={p.value}
-                          type="button"
-                          onClick={() => updateAccent(p.value)}
-                          title={p.label}
-                          aria-label={`Cor ${p.label}`}
-                          className={cn(
-                            "h-6 w-6 rounded-full border transition-transform",
-                            accent.toLowerCase() === p.value.toLowerCase()
-                              ? "ring-2 ring-offset-2 ring-offset-popover ring-foreground scale-110"
-                              : "border-border/60 hover:scale-110",
-                          )}
-                          style={{ background: p.value }}
-                        />
-                      ))}
-                      <label
-                        className="relative inline-flex items-center"
-                        title="Cor personalizada"
-                      >
-                        <input
-                          type="color"
-                          value={accent}
-                          onChange={(e) => updateAccent(e.target.value)}
-                          className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                          aria-label="Escolher cor personalizada"
-                        />
-                        <span className="h-6 w-6 rounded-full border border-dashed border-border bg-gradient-to-br from-red-400 via-yellow-300 to-blue-500" />
-                      </label>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span
-                        className="inline-block h-3 w-6 rounded-sm border border-border"
-                        style={{ background: accent }}
-                      />
-                      <span className="tabular-nums">{accent.toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-border">
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      className="text-xs px-2.5 py-1 rounded-md text-muted-foreground hover:text-foreground"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handlePrint}
-                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:opacity-90"
-                    >
-                      <Printer className="h-3.5 w-3.5" />
-                      Imprimir
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <PrintButton
+              target={() => ref.current}
+              title={headingText}
+              subtitle={`Período: ${periodo}`}
+            />
           )}
         </div>
       </header>
-
-      {/* Capa de impressão (FORM-CORP-213) — visível só no @media print */}
-      {printable && (
-        <>
-          <div className="print-only print-chrome-bar print-chrome-bar-top" />
-          <div className="print-only print-header">
-            <div className="print-header-left">
-              <CalendarDays className="print-header-icon" />
-              <span className="print-header-title">DATA DE ATUALIZAÇÃO</span>
-              <span className="print-header-datebox">
-                Data: {new Date().toLocaleDateString("pt-BR")}
-              </span>
-            </div>
-            <img src={frasleLogo} alt="Frasle Mobility" className="print-header-logo" />
-          </div>
-          <div className="print-only print-titlebar">
-            <h1 className="print-doc-title">{headingText}</h1>
-            <div className="print-doc-period">
-              <strong>Período:</strong> {periodo}
-            </div>
-          </div>
-        </>
-      )}
-
-      <div className="p-4 print-content">{children}</div>
-
-      {printable && (
-        <>
-          <div className="print-only print-footer">
-            <img src={randoncorpLogo} alt="RandonCorp" className="print-footer-logo" />
-            <span className="print-footer-code">
-              FORM-CORP-213 — Atualização Indicadores CTL · Rev.00 · 23/01/2026
-            </span>
-          </div>
-          <div className="print-only print-chrome-bar print-chrome-bar-bottom" />
-        </>
-      )}
+      <div className={cn("p-4", bodyClassName)}>{children}</div>
     </section>
   );
 }
 
 export function EmptyState({ label = "Nenhum dado encontrado" }: { label?: string }) {
   return (
-    <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+    <div className="flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
       <BarChart3 className="mb-2 h-5 w-5 opacity-70" />
       {label}
     </div>
@@ -635,8 +917,8 @@ export function ClassBadge({ c }: { c: "A" | "B" | "C" | "D" | string | undefine
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center w-7 h-7 rounded-md border text-xs font-bold",
-        map[safe] ?? "bg-muted text-muted-foreground border-border",
+        "inline-flex h-7 w-7 items-center justify-center rounded-md border text-xs font-bold",
+        map[safe] ?? "border-border bg-muted text-muted-foreground",
       )}
     >
       {safe}

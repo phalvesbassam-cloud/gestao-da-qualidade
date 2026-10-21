@@ -27,8 +27,8 @@ import {
   Cog,
   CalendarDays,
   Activity,
-  ListTodo,
-  Waypoints,
+  Network,
+  FileBarChart,
   Presentation,
   Boxes,
 } from "lucide-react";
@@ -44,7 +44,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale";
 
-import { getDashboardData } from "@/lib/sheets.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MultiSelect } from "@/components/multi-select";
@@ -56,29 +55,29 @@ import {
   type Filters,
 } from "@/hooks/use-dashboard";
 import { TvControls } from "@/components/tv-controls";
+import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { QualityHeaderIntelligence } from "@/components/quality-assistant";
 import type { DashboardData } from "@/lib/types";
-import { useDashboardFiltered } from "@/hooks/use-data";
+import { useDashboardFiltered, useDashboardQuery, useForceRefreshDashboard } from "@/hooks/use-data";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/frasle-logo.png";
 
 const NAV = [
-  { to: "/", label: "Consolidado", icon: LayoutDashboard },
+  { to: "/", label: "Consolidado", icon: LayoutDashboard, group: "Visão executiva" },
+  { to: "/reuniao", label: "Reunião Mensal", icon: Presentation, group: "Visão executiva" },
+  { to: "/rdm", label: "RDM", icon: FileBarChart, group: "Visão executiva" },
+  { to: "/qld-qlde", label: "QLD / QLDE", icon: Boxes, group: "Visão executiva" },
 
-  // Visões executivas
-  { to: "/reuniao", label: "Reunião Mensal", icon: Presentation },
-  { to: "/qld-qlde", label: "QLD / QLDE", icon: Boxes },
+  { to: "/idf", label: "IDF", icon: ClipboardCheck, group: "Gestão da Qualidade" },
+  { to: "/alerta", label: "Alertas", icon: AlertTriangle, group: "Gestão da Qualidade" },
+  { to: "/rnc", label: "RNC", icon: FileWarning, group: "Gestão da Qualidade" },
+  { to: "/inspecao", label: "Inspeção", icon: Activity, group: "Gestão da Qualidade" },
 
-  // Gestão da Qualidade
-  { to: "/idf", label: "IDF", icon: ClipboardCheck },
-  { to: "/alerta", label: "Alertas", icon: AlertTriangle },
-  { to: "/rnc", label: "RNC", icon: FileWarning },
-  { to: "/inspecao", label: "Inspeção", icon: Activity },
-  { to: "/acoes", label: "Ações", icon: ListTodo },
-  { to: "/timeline", label: "Timeline", icon: Waypoints },
-  { to: "/auditoria", label: "Auditoria", icon: History },
-  { to: "/admin", label: "Admin", icon: Settings },
+  { to: "/organograma", label: "Organograma", icon: Network, group: "Equipe" },
+
+  { to: "/auditoria", label: "Auditoria", icon: History, group: "Sistema" },
+  { to: "/admin", label: "Admin", icon: Settings, group: "Sistema" },
 ] as const;
 
 function countActiveFilters(filters: Filters): number {
@@ -114,19 +113,24 @@ export function AppShell() {
 }
 
 function Shell() {
-  const fetchData = useServerFn(getDashboardData);
-  const q = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: () => fetchData(),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
+  const q = useDashboardQuery();
+  const forceRefresh = useForceRefreshDashboard();
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshNow = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await forceRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [forceRefresh]);
   const router = useRouter();
   const location = useLocation();
   const { filters } = useFilters();
 const {
   selecting,
   selectedItems,
+  slides,
   startSelection,
   cancelSelection,
   finishSelection,
@@ -185,33 +189,46 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
           </div>
           {sidebarOpen && (
             <div className="px-5 pt-4 pb-2">
-              <div className="text-[10px] uppercase tracking-widest text-sidebar-foreground/60">
-                Qualidade
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-primary">
+                QualiHub
               </div>
-              <div className="text-sm font-display font-semibold text-sidebar-primary-foreground mt-0.5 whitespace-nowrap">
-                Gestão de Fornecedores
+              <div className="mt-0.5 whitespace-nowrap font-display text-sm font-semibold text-sidebar-accent-foreground">
+                Gestão da Qualidade
               </div>
             </div>
           )}
-          <nav className="flex-1 px-2 py-2 space-y-1">
-            {NAV.map((n) => {
+          <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
+            {NAV.map((n, i) => {
               const active = location.pathname === n.to;
               const Icon = n.icon;
+              const newGroup = i === 0 || NAV[i - 1].group !== n.group;
               return (
-                <Link
-                  key={n.to}
-                  to={n.to}
-                  title={n.label}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors whitespace-nowrap",
-                    active
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                <div key={n.to}>
+                  {newGroup && (
+                    <div className={cn("h-6 px-3", i > 0 && "mt-2")}>
+                      {sidebarOpen ? (
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45 whitespace-nowrap">
+                          {n.group}
+                        </span>
+                      ) : (
+                        i > 0 && <span className="mx-auto mt-3 block h-px w-6 bg-sidebar-border" />
+                      )}
+                    </div>
                   )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {sidebarOpen && <span>{n.label}</span>}
-                </Link>
+                  <Link
+                    to={n.to}
+                    title={n.label}
+                    className={cn(
+                      "relative mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors whitespace-nowrap",
+                      active
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_8px_20px_-10px] shadow-sidebar-primary"
+                        : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {sidebarOpen && <span className="font-medium">{n.label}</span>}
+                  </Link>
+                </div>
               );
             })}
           </nav>
@@ -235,26 +252,39 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
       <div
         className={cn("flex flex-col min-w-0 transition-[margin] duration-200", !tv && "md:ml-16")}
       >
-        <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
           <div className="flex items-center gap-2 px-3 py-3 md:gap-3 md:px-6">
             <PageTitle />
             <div className="flex-1" />
             <div className="tv-hide flex shrink-0 items-center gap-1 sm:gap-2">
               {!selecting && (
-  <Button
-    size="sm"
-    variant="outline"
-    onClick={startSelection}
-    className="gap-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
-    title="Criar apresentação"
-  >
-    <Presentation className="h-4 w-4" />
-
-    <span className="hidden lg:inline">
-      Criar apresentação
-    </span>
-  </Button>
-)}
+                <div className="flex items-center">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={startSelection}
+                    className={cn(
+                      "gap-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
+                      slides.length > 0 && "rounded-r-none",
+                    )}
+                    title="Escolher cards e gráficos para a apresentação"
+                  >
+                    <Presentation className="h-4 w-4" />
+                    <span className="hidden lg:inline">{slides.length > 0 ? "Adicionar slides" : "Criar apresentação"}</span>
+                  </Button>
+                  {slides.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.navigate({ to: "/apresentacao" })}
+                      className="-ml-px rounded-l-none border-primary/30 bg-primary/5 px-2.5 text-primary hover:bg-primary/10"
+                      title="Abrir o editor de apresentação"
+                    >
+                      {slides.length} slide{slides.length > 1 ? "s" : ""}
+                    </Button>
+                  )}
+                </div>
+              )}
               <QualityHeaderIntelligence isFetching={q.isFetching} fetchedAt={q.data?.fetchedAt} />
               <Button
                 size="sm"
@@ -278,11 +308,11 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => q.refetch()}
-                disabled={q.isFetching}
-                title="Atualizar"
+                onClick={refreshNow}
+                disabled={refreshing}
+                title="Ler a planilha agora"
               >
-                <RefreshCw className={cn("h-4 w-4", q.isFetching && "animate-spin")} />
+                <RefreshCw className={cn("h-4 w-4", (refreshing || q.isFetching) && "animate-spin")} />
                 <span className="hidden md:inline ml-1">Atualizar</span>
               </Button>
               <Button size="sm" variant="ghost" onClick={toggleTheme} title="Alternar tema">
@@ -367,11 +397,16 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
             resetKey={`${location.pathname}:${q.data?.fetchedAt ?? ""}:${JSON.stringify(filters)}`}
           >
             <CompareBanner />
-            {q.isLoading && !q.data ? <LoadingState /> : q.data ? <Outlet /> : null}
+            {location.pathname === "/organograma" || q.data ? (
+              <Outlet />
+            ) : q.isLoading ? (
+              <LoadingState />
+            ) : null}
           </ErrorBoundary>
         </main>
       </div>
       <TvControls controller={tvCtl} />
+      <Toaster richColors closeButton position="bottom-right" />
     </div>
   );
 }
@@ -388,13 +423,16 @@ const subtitles: Record<string, string> = {
   "/alerta": "Alertas da qualidade",
   "/rnc": "Não conformidades registradas",
   "/inspecao": "Monitoramento operacional e desempenho da equipe",
-  "/acoes": "Pendências, prazos e prioridades da qualidade",
-  "/timeline": "Rastreabilidade de inspeções, alertas e RNC",
+    "/rdm": "Reunião de Desempenho Mensal — slide da diretoria e PowerPoint oficial",
+  "/apresentacao": "Monte, apresente e exporte em PowerPoint editável",
+  "/organograma": "Estrutura da Qualidade — Controle de Qualidade e Adequação",
   "/auditoria": "Trilha de auditoria",
   "/admin": "Configurações do dashboard",
 };
   const labels: Record<string, string> = {
     "/inspecao": "Gestão de Inspeção",
+    "/apresentacao": "Editor de apresentação",
+    "/rdm": "RDM",
   };
   return (
     <div className="min-w-0 max-w-24 flex flex-col leading-tight sm:max-w-none">

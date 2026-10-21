@@ -2,10 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { textSpec, type SlideSpec, type SlideTheme } from "@/lib/slide-spec";
 
 export type PresentationItemType =
   | "chart"
@@ -24,6 +26,9 @@ export type PresentationItem = {
   subtitle?: string;
   type: PresentationItemType;
   sourceRoute: string;
+  /** Conteúdo estruturado do slide (ver src/lib/slide-spec.ts). */
+  spec?: SlideSpec;
+  /** Dados brutos (compatibilidade e contexto para o QualiAI). */
   data?: unknown;
 };
 
@@ -33,15 +38,33 @@ export type PresentationSlide = {
   title: string;
   subtitle?: string;
   notes: string;
-  type: PresentationItemType | "manual";
+  type: PresentationItemType | "manual" | "cover";
   sourceRoute?: string;
+  spec?: SlideSpec;
   data?: unknown;
+};
+
+export type DeckSettings = {
+  title: string;
+  subtitle: string;
+  theme: SlideTheme;
+  cover: boolean;
+  closing: boolean;
+};
+
+const DEFAULT_DECK: DeckSettings = {
+  title: "Reunião da Qualidade",
+  subtitle: "Gestão da Qualidade de Fornecedores",
+  theme: "dark",
+  cover: true,
+  closing: true,
 };
 
 type PresentationContextValue = {
   selecting: boolean;
   selectedItems: PresentationItem[];
   slides: PresentationSlide[];
+  deck: DeckSettings;
 
   startSelection: () => void;
   cancelSelection: () => void;
@@ -54,198 +77,168 @@ type PresentationContextValue = {
 
   updateSlide: (
     id: string,
-    patch: Partial<Pick<PresentationSlide, "title" | "subtitle" | "notes">>,
+    patch: Partial<Pick<PresentationSlide, "title" | "subtitle" | "notes" | "spec">>,
   ) => void;
-
   removeSlide: (id: string) => void;
+  duplicateSlide: (id: string) => void;
+  moveSlide: (id: string, toIndex: number) => void;
   moveSlideUp: (id: string) => void;
   moveSlideDown: (id: string) => void;
-  addManualSlide: () => void;
-
-  // Permite ao QualiAI substituir/reorganizar a apresentação inteira.
+  addManualSlide: () => string;
   setPresentationSlides: (slides: PresentationSlide[]) => void;
-
+  setDeck: (patch: Partial<DeckSettings>) => void;
   clearSlides: () => void;
 };
 
-const PresentationContext =
-  createContext<PresentationContextValue | null>(null);
+const PresentationContext = createContext<PresentationContextValue | null>(null);
 
-export function PresentationProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+const STORAGE_KEY = "qf-presentation-v2";
+
+function toSlide(item: PresentationItem, index: number): PresentationSlide {
+  return {
+    id: `slide-${Date.now()}-${index}-${item.id}`,
+    itemId: item.id,
+    title: item.title,
+    subtitle: item.subtitle,
+    notes: "",
+    type: item.type,
+    sourceRoute: item.sourceRoute,
+    spec: item.spec,
+    data: item.data,
+  };
+}
+
+export function PresentationProvider({ children }: { children: ReactNode }) {
   const [selecting, setSelecting] = useState(false);
   const [selectedItems, setSelectedItems] = useState<PresentationItem[]>([]);
   const [slides, setSlides] = useState<PresentationSlide[]>([]);
+  const [deck, setDeckState] = useState<DeckSettings>(DEFAULT_DECK);
+  const [restored, setRestored] = useState(false);
 
-  /**
-   * Inicia uma nova seleção.
-   */
+  // A apresentação em edição sobrevive a um recarregar de página.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { slides?: PresentationSlide[]; deck?: DeckSettings };
+        if (Array.isArray(saved.slides)) setSlides(saved.slides);
+        if (saved.deck) setDeckState({ ...DEFAULT_DECK, ...saved.deck });
+      }
+    } catch {
+      /* armazenamento indisponível */
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ slides, deck }));
+    } catch {
+      /* armazenamento cheio/indisponível: segue só em memória */
+    }
+  }, [slides, deck, restored]);
+
   const startSelection = useCallback(() => {
+    // Recomeça a seleção a partir do que já está na apresentação.
     setSelectedItems([]);
     setSelecting(true);
   }, []);
 
-  /**
-   * Cancela a seleção atual.
-   */
   const cancelSelection = useCallback(() => {
     setSelectedItems([]);
     setSelecting(false);
   }, []);
 
-  /**
-   * Finaliza a seleção e transforma cada conteúdo
-   * selecionado em um slide editável.
-   */
   const finishSelection = useCallback(() => {
-    const generatedSlides: PresentationSlide[] = selectedItems.map(
-      (item, index) => ({
-        id: `slide-${Date.now()}-${index}-${item.id}`,
-        itemId: item.id,
-        title: item.title,
-        subtitle: item.subtitle,
-        notes: "",
-        type: item.type,
-        sourceRoute: item.sourceRoute,
-        data: item.data,
-      }),
-    );
-
-    setSlides(generatedSlides);
+    setSlides((current) => [...current, ...selectedItems.map(toSlide)]);
+    setSelectedItems([]);
     setSelecting(false);
   }, [selectedItems]);
 
   const addItem = useCallback((item: PresentationItem) => {
-    setSelectedItems((current) => {
-      if (current.some((existing) => existing.id === item.id)) {
-        return current;
-      }
-
-      return [...current, item];
-    });
+    setSelectedItems((current) =>
+      current.some((e) => e.id === item.id) ? current : [...current, item],
+    );
   }, []);
 
   const removeItem = useCallback((id: string) => {
-    setSelectedItems((current) =>
-      current.filter((item) => item.id !== id),
-    );
+    setSelectedItems((current) => current.filter((item) => item.id !== id));
   }, []);
 
   const toggleItem = useCallback((item: PresentationItem) => {
-    setSelectedItems((current) => {
-      const exists = current.some(
-        (existing) => existing.id === item.id,
-      );
-
-      if (exists) {
-        return current.filter(
-          (existing) => existing.id !== item.id,
-        );
-      }
-
-      return [...current, item];
-    });
-  }, []);
-
-  const isSelected = useCallback(
-    (id: string) =>
-      selectedItems.some((item) => item.id === id),
-    [selectedItems],
-  );
-
-  /**
-   * Atualiza título, subtítulo ou observações.
-   */
-  const updateSlide = useCallback(
-    (
-      id: string,
-      patch: Partial<
-        Pick<PresentationSlide, "title" | "subtitle" | "notes">
-      >,
-    ) => {
-      setSlides((current) =>
-        current.map((slide) =>
-          slide.id === id
-            ? {
-                ...slide,
-                ...patch,
-              }
-            : slide,
-        ),
-      );
-    },
-    [],
-  );
-
-  /**
-   * Exclui um slide do editor.
-   */
-  const removeSlide = useCallback((id: string) => {
-    setSlides((current) =>
-      current.filter((slide) => slide.id !== id),
+    setSelectedItems((current) =>
+      current.some((e) => e.id === item.id)
+        ? current.filter((e) => e.id !== item.id)
+        : [...current, item],
     );
   }, []);
 
-  /**
-   * Move um slide uma posição para cima.
-   */
-  const moveSlideUp = useCallback((id: string) => {
+  const isSelected = useCallback(
+    (id: string) => selectedItems.some((item) => item.id === id),
+    [selectedItems],
+  );
+
+  const updateSlide = useCallback<PresentationContextValue["updateSlide"]>((id, patch) => {
+    setSlides((current) =>
+      current.map((slide) => (slide.id === id ? { ...slide, ...patch } : slide)),
+    );
+  }, []);
+
+  const removeSlide = useCallback((id: string) => {
+    setSlides((current) => current.filter((slide) => slide.id !== id));
+  }, []);
+
+  const duplicateSlide = useCallback((id: string) => {
     setSlides((current) => {
-      const index = current.findIndex(
-        (slide) => slide.id === id,
-      );
+      const i = current.findIndex((s) => s.id === id);
+      if (i < 0) return current;
+      const copy = {
+        ...current[i],
+        id: `${current[i].id}-copia-${Date.now()}`,
+        title: `${current[i].title} (cópia)`,
+      };
+      return [...current.slice(0, i + 1), copy, ...current.slice(i + 1)];
+    });
+  }, []);
 
-      if (index <= 0) {
-        return current;
-      }
-
+  const moveSlide = useCallback((id: string, toIndex: number) => {
+    setSlides((current) => {
+      const from = current.findIndex((s) => s.id === id);
+      if (from < 0) return current;
       const next = [...current];
-
-      [next[index - 1], next[index]] = [
-        next[index],
-        next[index - 1],
-      ];
-
+      const [moved] = next.splice(from, 1);
+      next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved);
       return next;
     });
   }, []);
 
-  /**
-   * Move um slide uma posição para baixo.
-   */
-  const moveSlideDown = useCallback((id: string) => {
-    setSlides((current) => {
-      const index = current.findIndex(
-        (slide) => slide.id === id,
-      );
+  const moveSlideUp = useCallback(
+    (id: string) =>
+      setSlides((c) => {
+        const i = c.findIndex((s) => s.id === id);
+        if (i <= 0) return c;
+        const n = [...c];
+        [n[i - 1], n[i]] = [n[i], n[i - 1]];
+        return n;
+      }),
+    [],
+  );
 
-      if (
-        index === -1 ||
-        index >= current.length - 1
-      ) {
-        return current;
-      }
+  const moveSlideDown = useCallback(
+    (id: string) =>
+      setSlides((c) => {
+        const i = c.findIndex((s) => s.id === id);
+        if (i < 0 || i >= c.length - 1) return c;
+        const n = [...c];
+        [n[i], n[i + 1]] = [n[i + 1], n[i]];
+        return n;
+      }),
+    [],
+  );
 
-      const next = [...current];
-
-      [next[index], next[index + 1]] = [
-        next[index + 1],
-        next[index],
-      ];
-
-      return next;
-    });
-  }, []);
-
-  /**
-   * Cria um slide totalmente manual.
-   */
   const addManualSlide = useCallback(() => {
     const id = `manual-${Date.now()}`;
-
     setSlides((current) => [
       ...current,
       {
@@ -254,26 +247,21 @@ export function PresentationProvider({
         subtitle: "",
         notes: "",
         type: "manual",
+        spec: textSpec(["Primeiro ponto", "Segundo ponto", "Próximos passos"]),
       },
     ]);
+    return id;
   }, []);
 
-  /**
-   * Substitui toda a estrutura da apresentação.
-   *
-   * Será usado pelo QualiAI para reorganizar slides existentes,
-   * alterar títulos/subtítulos e adicionar slides de análise.
-   */
   const setPresentationSlides = useCallback(
-    (newSlides: PresentationSlide[]) => {
-      setSlides(newSlides);
-    },
+    (newSlides: PresentationSlide[]) => setSlides(newSlides),
+    [],
+  );
+  const setDeck = useCallback(
+    (patch: Partial<DeckSettings>) => setDeckState((d) => ({ ...d, ...patch })),
     [],
   );
 
-  /**
-   * Limpa a apresentação atual.
-   */
   const clearSlides = useCallback(() => {
     setSlides([]);
     setSelectedItems([]);
@@ -284,6 +272,7 @@ export function PresentationProvider({
       selecting,
       selectedItems,
       slides,
+      deck,
       startSelection,
       cancelSelection,
       finishSelection,
@@ -293,16 +282,20 @@ export function PresentationProvider({
       isSelected,
       updateSlide,
       removeSlide,
+      duplicateSlide,
+      moveSlide,
       moveSlideUp,
       moveSlideDown,
       addManualSlide,
       setPresentationSlides,
+      setDeck,
       clearSlides,
     }),
     [
       selecting,
       selectedItems,
       slides,
+      deck,
       startSelection,
       cancelSelection,
       finishSelection,
@@ -312,29 +305,22 @@ export function PresentationProvider({
       isSelected,
       updateSlide,
       removeSlide,
+      duplicateSlide,
+      moveSlide,
       moveSlideUp,
       moveSlideDown,
       addManualSlide,
       setPresentationSlides,
+      setDeck,
       clearSlides,
     ],
   );
 
-  return (
-    <PresentationContext.Provider value={value}>
-      {children}
-    </PresentationContext.Provider>
-  );
+  return <PresentationContext.Provider value={value}>{children}</PresentationContext.Provider>;
 }
 
 export function usePresentation() {
   const context = useContext(PresentationContext);
-
-  if (!context) {
-    throw new Error(
-      "usePresentation deve ser usado dentro de PresentationProvider.",
-    );
-  }
-
+  if (!context) throw new Error("usePresentation deve ser usado dentro de PresentationProvider.");
   return context;
 }
