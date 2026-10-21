@@ -8,7 +8,7 @@ import {
   ppmTotals,
   referenceYear,
   isRejectedStatus,
-  MESES_CURTOS,
+  MESES_LONGOS,
 } from "@/lib/monthly-metrics";
 import { qldQuantidade, qldSummary, qldValor } from "@/lib/qld";
 import type { OrgData } from "@/lib/org";
@@ -178,7 +178,7 @@ export function buildQualiAIContext(input: {
     mensal: {
       ano: year,
       meses: meses.map((m) => ({
-        mes: MESES_CURTOS[m.month],
+        mes: `${MESES_LONGOS[m.month]}/${year}`,
         inspecoes: m.inspecoes,
         reprovadas: m.reprovadas,
         indiceNcPct: m.inspecoes ? round((m.reprovadas / m.inspecoes) * 100) : 0,
