@@ -12,6 +12,7 @@ import {
 } from "./idf-calc";
 import type { DashboardData, QLDQLDERow } from "./types";
 import { encodeDashboard } from "./wire";
+import { ABAS, abaConfig, chaveDaLinha, dataNumero, paraDataBR, type AbaId } from "./importacao";
 
 const SPREADSHEET_ID = "1ockGLmUaeC7u0QpwxROYo2rIz-40RnUC8oRGZwrq2Q0";
 const APPS_SCRIPT_URL =
@@ -990,3 +991,128 @@ export const getAdequacaoMensal = createServerFn({ method: "GET" }).handler(
     }
   },
 );
+
+/* ======================= Atualizar dados (importação pelo site) =======================
+   A empresa bloqueia o Google Sheets no navegador; o site lê e grava na planilha pelo
+   servidor (Netlify → Google), então a atualização funciona de dentro da empresa. */
+
+export type StatusAba = {
+  aba: AbaId;
+  cabecalho: string[];
+  linhas: number;
+  ultimaData: string;
+  ultimaImportacao: {
+    quando: string;
+    autor: string;
+    arquivo: string;
+    linhas: number;
+    ultimaData: string;
+    desfeitaEm?: string;
+  } | null;
+};
+
+async function lerAbaCrua(aba: AbaId) {
+  const valores = await fetchPublicSheet(aba);
+  return { cabecalho: valores[0] ?? [], dados: valores.slice(1).filter((r) => value(r, 0) !== "") };
+}
+
+export const getStatusImportacao = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ abas: StatusAba[] }> => {
+    let registros: Record<string, { valor: StatusAba["ultimaImportacao"] }> = {};
+    try {
+      const res = await fetch(`${scriptUrlGeral()}?action=kvGet&prefixo=importacao:`, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      });
+      registros = ((await res.json()) as { dados?: typeof registros }).dados ?? {};
+    } catch {
+      registros = {};
+    }
+    const abas = await Promise.all(
+      ABAS.map(async (cfg) => {
+        const { cabecalho, dados } = await lerAbaCrua(cfg.id);
+        let ultima = "";
+        if (cfg.colunaData != null) {
+          let max = 0;
+          for (const r of dados) {
+            const br = paraDataBR(value(r, cfg.colunaData));
+            const n = dataNumero(br);
+            if (n > max) {
+              max = n;
+              ultima = br;
+            }
+          }
+        }
+        return {
+          aba: cfg.id,
+          cabecalho,
+          linhas: dados.length,
+          ultimaData: ultima,
+          ultimaImportacao: registros[`importacao:${cfg.id}`]?.valor ?? null,
+        };
+      }),
+    );
+    return { abas };
+  },
+);
+
+/** Devolve quais chaves (por índice) já existem na aba. */
+export const verificarDuplicadas = createServerFn({ method: "POST" })
+  .inputValidator((d: { aba: AbaId; chaves: string[] }) => {
+    if (!ABAS.some((a) => a.id === d.aba)) throw new Error("Aba inválida");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const cfg = abaConfig(data.aba);
+    const { dados } = await lerAbaCrua(cfg.id);
+    const existentes = new Set(dados.map((r) => chaveDaLinha(r, cfg)));
+    const repetidas: number[] = [];
+    data.chaves.forEach((k, i) => {
+      if (existentes.has(k)) repetidas.push(i);
+    });
+    return { repetidas };
+  });
+
+export const importarLinhasPlanilha = createServerFn({ method: "POST" })
+  .inputValidator(
+    (d: {
+      aba: AbaId;
+      colunas: number[];
+      linhas: (string | number | boolean | null)[][];
+      autor: string;
+      arquivo: string;
+      ultimaData: string;
+      primeiraLinhaImportacao?: number;
+    }) => {
+      if (!ABAS.some((a) => a.id === d.aba)) throw new Error("Aba inválida");
+      if (!d.colunas?.length || !d.linhas?.length) throw new Error("Nada para importar");
+      if (d.linhas.length > 3000) throw new Error("Envie no máximo 3.000 linhas por vez");
+      requireAutor(d.autor);
+      return d;
+    },
+  )
+  .handler(async ({ data }) => {
+    const res = await postToQualiHubScript({
+      action: "importarLinhas",
+      ...data,
+      autor: data.autor.trim(),
+    });
+    return {
+      primeiraLinha: Number(res.primeiraLinha ?? 0),
+      ultimaLinha: Number(res.ultimaLinha ?? 0),
+    };
+  });
+
+export const desfazerImportacao = createServerFn({ method: "POST" })
+  .inputValidator((d: { aba: AbaId; autor: string }) => {
+    requireAutor(d.autor);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const res = await postToQualiHubScript({
+      action: "desfazerImportacao",
+      aba: data.aba,
+      autor: data.autor.trim(),
+    });
+    return { linhas: Number(res.linhas ?? 0) };
+  });

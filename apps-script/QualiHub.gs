@@ -51,6 +51,10 @@ function doPost(e) {
         return json_(saveNotaOverride_(body));
       case "addEvidencia":
         return json_(addEvidencia_(body));
+      case "importarLinhas":
+        return json_(importarLinhas_(body));
+      case "desfazerImportacao":
+        return json_(desfazerImportacao_(body));
       default:
         return json_({ ok: false, error: "Ação desconhecida: " + body.action });
     }
@@ -381,6 +385,81 @@ function kvSet_(b) {
   sh.getRange(row, 1, 1, 4).setValues([[String(b.chave), texto, agora, String(b.autor || "")]]);
   audit_(b.autor, "dados_atualizados", "qualihub_dados", b.chave, "", {});
   return { ok: true, atualizadoEm: agora };
+}
+
+/* ===================== IMPORTAÇÃO PELA TELA "ATUALIZAR DADOS" =====================
+   O site envia as linhas já revisadas e o script grava logo depois da última linha
+   preenchida da aba (coluna A). Só as colunas importadas são escritas, uma a uma,
+   para não apagar checkboxes nem fórmulas das demais colunas. */
+
+var ABAS_IMPORTAVEIS = { "IDF": true, "RNC": true, "ALERTA": true, "QLD-QLDE": true };
+
+function ultimaLinhaPreenchida_(sh) {
+  var last = sh.getLastRow();
+  if (last < 1) return 0;
+  var colA = sh.getRange(1, 1, last, 1).getValues();
+  for (var i = colA.length - 1; i >= 0; i--) {
+    if (String(colA[i][0]).trim() !== "") return i + 1;
+  }
+  return 0;
+}
+
+function importarLinhas_(b) {
+  if (!ABAS_IMPORTAVEIS[b.aba]) throw new Error("Aba não permitida: " + b.aba);
+  var sh = ss_().getSheetByName(b.aba);
+  if (!sh) throw new Error("Aba " + b.aba + " não encontrada.");
+  var colunas = b.colunas || [];
+  var linhas = b.linhas || [];
+  if (!colunas.length || !linhas.length) throw new Error("Nada para importar.");
+
+  var inicio = ultimaLinhaPreenchida_(sh) + 1;
+  var n = linhas.length;
+  if (sh.getMaxRows() < inicio + n - 1) sh.insertRowsAfter(sh.getMaxRows(), inicio + n - 1 - sh.getMaxRows());
+
+  for (var c = 0; c < colunas.length; c++) {
+    var col = Number(colunas[c]) + 1; // índice 0 → coluna A
+    var valores = [];
+    for (var r = 0; r < n; r++) {
+      var v = linhas[r][c];
+      valores.push([v === null || v === undefined ? "" : v]);
+    }
+    sh.getRange(inicio, col, n, 1).setValues(valores);
+  }
+
+  // Em importações grandes o site envia em lotes; todos os lotes formam uma importação só.
+  var primeira = Number(b.primeiraLinhaImportacao) || inicio;
+  var registro = {
+    aba: b.aba,
+    quando: new Date().toISOString(),
+    autor: String(b.autor || ""),
+    arquivo: String(b.arquivo || ""),
+    linhas: inicio + n - primeira,
+    primeiraLinha: primeira,
+    ultimaLinha: inicio + n - 1,
+    colunas: colunas,
+    ultimaData: String(b.ultimaData || ""),
+  };
+  kvSet_({ chave: "importacao:" + b.aba, valor: registro, autor: b.autor });
+  audit_(b.autor, "dados_importados", "importacao", b.aba, "", registro);
+  return { ok: true, primeiraLinha: inicio, ultimaLinha: inicio + n - 1 };
+}
+
+/** Desfaz a última importação da aba: limpa só as células que ela gravou. */
+function desfazerImportacao_(b) {
+  var reg = kvGet_("importacao:" + b.aba)["importacao:" + b.aba];
+  if (!reg || !reg.valor) throw new Error("Não há importação registrada para desfazer.");
+  var imp = reg.valor;
+  if (imp.desfeitaEm) throw new Error("A última importação já foi desfeita.");
+  var sh = ss_().getSheetByName(b.aba);
+  var n = imp.ultimaLinha - imp.primeiraLinha + 1;
+  (imp.colunas || []).forEach(function (c) {
+    sh.getRange(imp.primeiraLinha, Number(c) + 1, n, 1).clearContent();
+  });
+  imp.desfeitaEm = new Date().toISOString();
+  imp.desfeitaPor = String(b.autor || "");
+  kvSet_({ chave: "importacao:" + b.aba, valor: imp, autor: b.autor });
+  audit_(b.autor, "importacao_desfeita", "importacao", b.aba, "", { linhas: n });
+  return { ok: true, linhas: n };
 }
 
 function json_(obj) {
