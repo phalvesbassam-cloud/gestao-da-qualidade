@@ -17,6 +17,7 @@ import { Route as OrganogramaRouteImport } from './routes/organograma'
 import { Route as InspecaoRouteImport } from './routes/inspecao'
 import { Route as IdfRouteImport } from './routes/idf'
 import { Route as AuditoriaRouteImport } from './routes/auditoria'
+import { Route as AtualizarRouteImport } from './routes/atualizar'
 import { Route as ApresentacaoRouteImport } from './routes/apresentacao'
 import { Route as AlertaRouteImport } from './routes/alerta'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -63,6 +64,11 @@ const AuditoriaRoute = AuditoriaRouteImport.update({
   path: '/auditoria',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AtualizarRoute = AtualizarRouteImport.update({
+  id: '/atualizar',
+  path: '/atualizar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApresentacaoRoute = ApresentacaoRouteImport.update({
   id: '/apresentacao',
   path: '/apresentacao',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
   '/apresentacao': typeof ApresentacaoRoute
+  '/atualizar': typeof AtualizarRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
   '/apresentacao': typeof ApresentacaoRoute
+  '/atualizar': typeof AtualizarRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/alerta': typeof AlertaRoute
   '/apresentacao': typeof ApresentacaoRoute
+  '/atualizar': typeof AtualizarRoute
   '/auditoria': typeof AuditoriaRoute
   '/idf': typeof IdfRoute
   '/inspecao': typeof InspecaoRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/alerta'
     | '/apresentacao'
+    | '/atualizar'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/alerta'
     | '/apresentacao'
+    | '/atualizar'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/alerta'
     | '/apresentacao'
+    | '/atualizar'
     | '/auditoria'
     | '/idf'
     | '/inspecao'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AlertaRoute: typeof AlertaRoute
   ApresentacaoRoute: typeof ApresentacaoRoute
+  AtualizarRoute: typeof AtualizarRoute
   AuditoriaRoute: typeof AuditoriaRoute
   IdfRoute: typeof IdfRoute
   InspecaoRoute: typeof InspecaoRoute
@@ -257,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditoriaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/atualizar': {
+      id: '/atualizar'
+      path: '/atualizar'
+      fullPath: '/atualizar'
+      preLoaderRoute: typeof AtualizarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/apresentacao': {
       id: '/apresentacao'
       path: '/apresentacao'
@@ -300,6 +320,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AlertaRoute: AlertaRoute,
   ApresentacaoRoute: ApresentacaoRoute,
+  AtualizarRoute: AtualizarRoute,
   AuditoriaRoute: AuditoriaRoute,
   IdfRoute: IdfRoute,
   InspecaoRoute: InspecaoRoute,

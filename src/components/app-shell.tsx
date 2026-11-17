@@ -28,6 +28,7 @@ import {
   CalendarDays,
   Activity,
   Network,
+  CloudUpload,
   FileBarChart,
   Presentation,
   Boxes,
@@ -76,6 +77,7 @@ const NAV = [
 
   { to: "/organograma", label: "Organograma", icon: Network, group: "Equipe" },
 
+  { to: "/atualizar", label: "Atualizar dados", icon: CloudUpload, group: "Sistema" },
   { to: "/auditoria", label: "Auditoria", icon: History, group: "Sistema" },
   { to: "/admin", label: "Admin", icon: Settings, group: "Sistema" },
 ] as const;
@@ -423,7 +425,8 @@ const subtitles: Record<string, string> = {
   "/alerta": "Alertas da qualidade",
   "/rnc": "Não conformidades registradas",
   "/inspecao": "Monitoramento operacional e desempenho da equipe",
-    "/rdm": "Reunião de Desempenho Mensal — slide da diretoria e PowerPoint oficial",
+    "/atualizar": "Importe a planilha mestre direto pelo sistema",
+  "/rdm": "Reunião de Desempenho Mensal — slide da diretoria e PowerPoint oficial",
   "/apresentacao": "Monte, apresente e exporte em PowerPoint editável",
   "/organograma": "Estrutura da Qualidade — Controle de Qualidade e Adequação",
   "/auditoria": "Trilha de auditoria",
@@ -433,6 +436,7 @@ const subtitles: Record<string, string> = {
     "/inspecao": "Gestão de Inspeção",
     "/apresentacao": "Editor de apresentação",
     "/rdm": "RDM",
+    "/atualizar": "Atualizar dados",
   };
   return (
     <div className="min-w-0 max-w-24 flex flex-col leading-tight sm:max-w-none">
