@@ -52,6 +52,9 @@ export type DeckSettings = {
   closing: boolean;
 };
 
+/** Para onde vão os itens escolhidos: o editor de apresentação (padrão) ou um template. */
+export type DestinoSelecao = { tipo: "template"; id: string; nome: string } | null;
+
 const DEFAULT_DECK: DeckSettings = {
   title: "Reunião da Qualidade",
   subtitle: "Gestão da Qualidade de Fornecedores",
@@ -66,9 +69,26 @@ type PresentationContextValue = {
   slides: PresentationSlide[];
   deck: DeckSettings;
 
-  startSelection: () => void;
+  /** Destino da seleção em andamento (null = editor de apresentação). */
+  destino: DestinoSelecao;
+  startSelection: (destino?: DestinoSelecao) => void;
   cancelSelection: () => void;
-  finishSelection: () => void;
+  /** Conclui e devolve o destino, para quem chamou decidir para onde navegar. */
+  finishSelection: () => DestinoSelecao;
+
+  /** Dados do sistema escolhidos para cada template (id do template -> itens). */
+  templateDados: Record<string, PresentationItem[]>;
+  editarDadoTemplate: (
+    templateId: string,
+    itemId: string,
+    patch: Partial<Pick<PresentationItem, "title" | "subtitle">>,
+  ) => void;
+  removerDadoTemplate: (templateId: string, itemId: string) => void;
+  moverDadoTemplate: (templateId: string, itemId: string, direcao: -1 | 1) => void;
+  limparDadosTemplate: (templateId: string) => void;
+  /** Template cuja montagem deve abrir ao voltar para a Biblioteca. */
+  montagemPendente: string | null;
+  setMontagemPendente: (id: string | null) => void;
 
   addItem: (item: PresentationItem) => void;
   removeItem: (id: string) => void;
@@ -93,6 +113,7 @@ type PresentationContextValue = {
 const PresentationContext = createContext<PresentationContextValue | null>(null);
 
 const STORAGE_KEY = "qf-presentation-v2";
+const TEMPLATE_KEY = "qf-template-dados-v1";
 
 function toSlide(item: PresentationItem, index: number): PresentationSlide {
   return {
@@ -114,6 +135,9 @@ export function PresentationProvider({ children }: { children: ReactNode }) {
   const [slides, setSlides] = useState<PresentationSlide[]>([]);
   const [deck, setDeckState] = useState<DeckSettings>(DEFAULT_DECK);
   const [restored, setRestored] = useState(false);
+  const [destino, setDestino] = useState<DestinoSelecao>(null);
+  const [templateDados, setTemplateDados] = useState<Record<string, PresentationItem[]>>({});
+  const [montagemPendente, setMontagemPendente] = useState<string | null>(null);
 
   // A apresentação em edição sobrevive a um recarregar de página.
   useEffect(() => {
@@ -123,6 +147,11 @@ export function PresentationProvider({ children }: { children: ReactNode }) {
         const saved = JSON.parse(raw) as { slides?: PresentationSlide[]; deck?: DeckSettings };
         if (Array.isArray(saved.slides)) setSlides(saved.slides);
         if (saved.deck) setDeckState({ ...DEFAULT_DECK, ...saved.deck });
+      }
+      const rawT = localStorage.getItem(TEMPLATE_KEY);
+      if (rawT) {
+        const t = JSON.parse(rawT) as Record<string, PresentationItem[]>;
+        if (t && typeof t === "object") setTemplateDados(t);
       }
     } catch {
       /* armazenamento indisponível */
@@ -139,22 +168,88 @@ export function PresentationProvider({ children }: { children: ReactNode }) {
     }
   }, [slides, deck, restored]);
 
-  const startSelection = useCallback(() => {
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templateDados));
+    } catch {
+      /* armazenamento cheio/indisponível */
+    }
+  }, [templateDados, restored]);
+
+  const startSelection = useCallback((novoDestino: DestinoSelecao = null) => {
     // Recomeça a seleção a partir do que já está na apresentação.
     setSelectedItems([]);
+    setDestino(novoDestino);
     setSelecting(true);
   }, []);
 
   const cancelSelection = useCallback(() => {
     setSelectedItems([]);
     setSelecting(false);
+    setDestino(null);
   }, []);
 
-  const finishSelection = useCallback(() => {
-    setSlides((current) => [...current, ...selectedItems.map(toSlide)]);
+  const finishSelection = useCallback((): DestinoSelecao => {
+    const alvo = destino;
+    if (alvo?.tipo === "template") {
+      setTemplateDados((atual) => {
+        const lista = atual[alvo.id] ?? [];
+        const novos = selectedItems.filter((it) => !lista.some((e) => e.id === it.id));
+        return { ...atual, [alvo.id]: [...lista, ...novos] };
+      });
+      setMontagemPendente(alvo.id);
+    } else {
+      setSlides((current) => [...current, ...selectedItems.map(toSlide)]);
+    }
     setSelectedItems([]);
     setSelecting(false);
-  }, [selectedItems]);
+    setDestino(null);
+    return alvo;
+  }, [selectedItems, destino]);
+
+  const editarDadoTemplate = useCallback<PresentationContextValue["editarDadoTemplate"]>(
+    (templateId, itemId, patch) =>
+      setTemplateDados((atual) => ({
+        ...atual,
+        [templateId]: (atual[templateId] ?? []).map((it) =>
+          it.id === itemId ? { ...it, ...patch } : it,
+        ),
+      })),
+    [],
+  );
+
+  const removerDadoTemplate = useCallback(
+    (templateId: string, itemId: string) =>
+      setTemplateDados((atual) => ({
+        ...atual,
+        [templateId]: (atual[templateId] ?? []).filter((it) => it.id !== itemId),
+      })),
+    [],
+  );
+
+  const moverDadoTemplate = useCallback(
+    (templateId: string, itemId: string, direcao: -1 | 1) =>
+      setTemplateDados((atual) => {
+        const lista = [...(atual[templateId] ?? [])];
+        const i = lista.findIndex((it) => it.id === itemId);
+        const j = i + direcao;
+        if (i < 0 || j < 0 || j >= lista.length) return atual;
+        [lista[i], lista[j]] = [lista[j], lista[i]];
+        return { ...atual, [templateId]: lista };
+      }),
+    [],
+  );
+
+  const limparDadosTemplate = useCallback(
+    (templateId: string) =>
+      setTemplateDados((atual) => {
+        const resto = { ...atual };
+        delete resto[templateId];
+        return resto;
+      }),
+    [],
+  );
 
   const addItem = useCallback((item: PresentationItem) => {
     setSelectedItems((current) =>
@@ -273,9 +368,17 @@ export function PresentationProvider({ children }: { children: ReactNode }) {
       selectedItems,
       slides,
       deck,
+      destino,
       startSelection,
       cancelSelection,
       finishSelection,
+      templateDados,
+      editarDadoTemplate,
+      removerDadoTemplate,
+      moverDadoTemplate,
+      limparDadosTemplate,
+      montagemPendente,
+      setMontagemPendente,
       addItem,
       removeItem,
       toggleItem,
@@ -292,6 +395,13 @@ export function PresentationProvider({ children }: { children: ReactNode }) {
       clearSlides,
     }),
     [
+      destino,
+      templateDados,
+      editarDadoTemplate,
+      removerDadoTemplate,
+      moverDadoTemplate,
+      limparDadosTemplate,
+      montagemPendente,
       selecting,
       selectedItems,
       slides,

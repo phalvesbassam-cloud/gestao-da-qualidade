@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as RncRouteImport } from './routes/rnc'
 import { Route as ReuniaoRouteImport } from './routes/reuniao'
 import { Route as RdmRouteImport } from './routes/rdm'
@@ -24,6 +25,11 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FornecedorFornecedorRouteImport } from './routes/fornecedor.$fornecedor'
 
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RncRoute = RncRouteImport.update({
   id: '/rnc',
   path: '/rnc',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/rdm': typeof RdmRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
+  '/templates': typeof TemplatesRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/rdm': typeof RdmRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
+  '/templates': typeof TemplatesRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/rdm': typeof RdmRoute
   '/reuniao': typeof ReuniaoRoute
   '/rnc': typeof RncRoute
+  '/templates': typeof TemplatesRoute
   '/fornecedor/$fornecedor': typeof FornecedorFornecedorRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/rdm'
     | '/reuniao'
     | '/rnc'
+    | '/templates'
     | '/fornecedor/$fornecedor'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/rdm'
     | '/reuniao'
     | '/rnc'
+    | '/templates'
     | '/fornecedor/$fornecedor'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/rdm'
     | '/reuniao'
     | '/rnc'
+    | '/templates'
     | '/fornecedor/$fornecedor'
   fileRoutesById: FileRoutesById
 }
@@ -209,11 +221,19 @@ export interface RootRouteChildren {
   RdmRoute: typeof RdmRoute
   ReuniaoRoute: typeof ReuniaoRoute
   RncRoute: typeof RncRoute
+  TemplatesRoute: typeof TemplatesRoute
   FornecedorFornecedorRoute: typeof FornecedorFornecedorRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rnc': {
       id: '/rnc'
       path: '/rnc'
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   RdmRoute: RdmRoute,
   ReuniaoRoute: ReuniaoRoute,
   RncRoute: RncRoute,
+  TemplatesRoute: TemplatesRoute,
   FornecedorFornecedorRoute: FornecedorFornecedorRoute,
 }
 export const routeTree = rootRouteImport

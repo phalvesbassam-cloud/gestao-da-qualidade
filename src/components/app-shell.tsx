@@ -32,6 +32,7 @@ import {
   FileBarChart,
   Presentation,
   Boxes,
+  LayoutTemplate,
 } from "lucide-react";
 
 import {
@@ -76,6 +77,7 @@ const NAV = [
   { to: "/inspecao", label: "Inspeção", icon: Activity, group: "Gestão da Qualidade" },
 
   { to: "/organograma", label: "Organograma", icon: Network, group: "Equipe" },
+  { to: "/templates", label: "Templates", icon: LayoutTemplate, group: "Recursos" },
 
   { to: "/atualizar", label: "Atualizar dados", icon: CloudUpload, group: "Sistema" },
   { to: "/auditoria", label: "Auditoria", icon: History, group: "Sistema" },
@@ -133,17 +135,16 @@ const {
   selecting,
   selectedItems,
   slides,
+  destino,
   startSelection,
   cancelSelection,
   finishSelection,
 } = usePresentation();
 
 const handleFinishSelection = useCallback(() => {
-  finishSelection();
-
-  router.navigate({
-    to: "/apresentacao",
-  });
+  const alvo = finishSelection();
+  // Dados escolhidos para um template voltam para a Biblioteca de Templates.
+  router.navigate({ to: alvo?.tipo === "template" ? "/templates" : "/apresentacao" });
 }, [finishSelection, router]);
 
 const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHover] = useState(false);
@@ -264,7 +265,7 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={startSelection}
+                    onClick={() => startSelection()}
                     className={cn(
                       "gap-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
                       slides.length > 0 && "rounded-r-none",
@@ -349,7 +350,9 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
         <Presentation className="h-4 w-4 text-primary" />
 
         <span className="text-sm font-semibold">
-          Selecionando conteúdo para apresentação
+          {destino?.tipo === "template"
+            ? `Escolhendo dados para o modelo ${destino.nome}`
+            : "Selecionando conteúdo para apresentação"}
         </span>
       </div>
 
@@ -359,7 +362,9 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
       </Badge>
 
       <span className="hidden text-xs text-muted-foreground md:inline">
-        Navegue pelo QualiHub e escolha os conteúdos da reunião.
+        {destino?.tipo === "template"
+          ? "Navegue pelas abas e clique em Adicionar nos cards e gráficos que vão para o PowerPoint."
+          : "Navegue pelo QualiHub e escolha os conteúdos da reunião."}
       </span>
 
       <div className="flex-1" />
@@ -377,7 +382,7 @@ const { dark, mounted, toggle: toggleTheme } = useTheme();  const [hover, setHov
         onClick={handleFinishSelection}
         disabled={selectedItems.length === 0}
       >
-        Concluir seleção
+        {destino?.tipo === "template" ? "Concluir e montar PowerPoint" : "Concluir seleção"}
       </Button>
     </div>
   </div>
@@ -426,6 +431,7 @@ const subtitles: Record<string, string> = {
   "/rnc": "Não conformidades registradas",
   "/inspecao": "Monitoramento operacional e desempenho da equipe",
     "/atualizar": "Importe a planilha mestre direto pelo sistema",
+  "/templates": "Modelos oficiais de PowerPoint para Engenharia e Qualidade",
   "/rdm": "Reunião de Desempenho Mensal — slide da diretoria e PowerPoint oficial",
   "/apresentacao": "Monte, apresente e exporte em PowerPoint editável",
   "/organograma": "Estrutura da Qualidade — Controle de Qualidade e Adequação",
@@ -437,6 +443,7 @@ const subtitles: Record<string, string> = {
     "/apresentacao": "Editor de apresentação",
     "/rdm": "RDM",
     "/atualizar": "Atualizar dados",
+    "/templates": "Biblioteca de Templates",
   };
   return (
     <div className="min-w-0 max-w-24 flex flex-col leading-tight sm:max-w-none">

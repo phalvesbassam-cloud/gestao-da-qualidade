@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "templates": "node scripts/templates/gerar-templates.mjs && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/templates/validar-e-exportar.ps1"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

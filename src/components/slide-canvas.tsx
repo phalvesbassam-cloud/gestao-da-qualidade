@@ -851,8 +851,8 @@ function TableView({
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize }}>
         <thead>
           <tr style={{ background: c(t.primary), color: "#fff" }}>
-            {spec.table.columns.map((col) => (
-              <th key={col} style={{ textAlign: "left", padding: "12px 14px", fontWeight: 700 }}>
+            {spec.table.columns.map((col, ci) => (
+              <th key={`${ci}-${col}`} style={{ textAlign: "left", padding: "12px 14px", fontWeight: 700 }}>
                 {col}
               </th>
             ))}
